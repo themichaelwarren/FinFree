@@ -164,11 +164,13 @@ const AppContent: React.FC = () => {
     setConfig(newConfig);
 
     const syncMode = getSyncMode(newConfig);
+    console.log('handleConfigUpdate - syncMode:', syncMode, 'isOnline:', isOnline);
 
     // Sync config to cloud
     if (isOnline && syncMode !== 'local') {
       try {
         if (syncMode === 'oauth' && user?.accessToken && newConfig.spreadsheetId) {
+          console.log('Syncing config via OAuth...');
           // OAuth mode: sync directly via Sheets API
           await sheetsApi.saveConfig(user.accessToken, newConfig.spreadsheetId, {
             theme: newConfig.theme,
@@ -176,8 +178,12 @@ const AppContent: React.FC = () => {
           });
 
           // If budgets changed, sync to dedicated Budgets sheet
-          if (JSON.stringify(newConfig.budgets) !== JSON.stringify(oldConfig.budgets)) {
+          const budgetsChanged = JSON.stringify(newConfig.budgets) !== JSON.stringify(oldConfig.budgets);
+          console.log('Budgets changed:', budgetsChanged);
+          if (budgetsChanged) {
+            console.log('Syncing budgets to Sheets...');
             await sheetsApi.saveBudgets(user.accessToken, newConfig.spreadsheetId, newConfig.budgets);
+            console.log('Budgets synced successfully');
           }
         } else if (syncMode === 'appsscript') {
           // Apps Script mode
@@ -354,26 +360,6 @@ const AppContent: React.FC = () => {
         />
       )}
 
-      {/* Initial Onboarding */}
-      {!config.geminiKey && !showSettings && (
-        <div className={`fixed inset-0 backdrop-blur-md z-[60] flex items-center justify-center p-6 text-center ${isDark ? 'bg-black/90' : 'bg-white/90'}`}>
-          <div className={`rounded-[2rem] p-10 max-w-sm shadow-2xl ${isDark ? 'bg-zinc-900/50 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
-            <div className={`w-16 h-16 rounded-[1.5rem] flex items-center justify-center mx-auto mb-8 ${isDark ? 'bg-white/5 border border-white/10' : 'bg-gray-100 border border-gray-200'}`}>
-              <ICONS.Settings className={`w-8 h-8 ${isDark ? 'text-zinc-300' : 'text-gray-600'}`} />
-            </div>
-            <h2 className={`text-2xl font-bold mb-3 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>Setup FinFree</h2>
-            <p className={`text-sm mb-10 leading-relaxed ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
-              To enable Gemini OCR scanning and Google Sheets sync, please add your credentials in the settings.
-            </p>
-            <button
-              onClick={() => setShowSettings(true)}
-              className={`w-full font-bold py-4 rounded-2xl transition-all shadow-lg active:scale-95 ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
-            >
-              Get Started
-            </button>
-          </div>
-        </div>
-      )}
     </div>
     </div>
   );

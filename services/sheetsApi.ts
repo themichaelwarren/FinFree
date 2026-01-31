@@ -162,7 +162,8 @@ export const sheetsApi = {
       }
     );
 
-    if (!response.ok) {
+    // 404 is ok - means range was already empty
+    if (!response.ok && response.status !== 404) {
       throw new Error('Failed to clear values');
     }
   },

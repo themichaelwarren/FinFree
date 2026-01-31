@@ -122,10 +122,13 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isScanning || !apiKey}
+              title={!apiKey ? 'Add Gemini API key in Settings to enable receipt scanning' : 'Scan receipt'}
               className={`p-4 rounded-xl flex items-center justify-center transition-all ${
-                isScanning
-                  ? isDark ? 'bg-zinc-800' : 'bg-gray-200'
-                  : isDark ? 'bg-zinc-800 hover:bg-zinc-700 active:scale-95 border border-zinc-700' : 'bg-gray-100 hover:bg-gray-200 active:scale-95 border border-gray-300'
+                !apiKey
+                  ? isDark ? 'bg-zinc-900 opacity-40 cursor-not-allowed' : 'bg-gray-100 opacity-40 cursor-not-allowed'
+                  : isScanning
+                    ? isDark ? 'bg-zinc-800' : 'bg-gray-200'
+                    : isDark ? 'bg-zinc-800 hover:bg-zinc-700 active:scale-95 border border-zinc-700' : 'bg-gray-100 hover:bg-gray-200 active:scale-95 border border-gray-300'
               }`}
             >
               {isScanning ? (

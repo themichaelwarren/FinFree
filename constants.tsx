@@ -98,8 +98,8 @@ const createEmptyBudget = (): MonthlyBudget => ({
 });
 
 export const DEFAULT_CONFIG: AppConfig = {
-  geminiKey: process.env.GEMINI_API_KEY || '',
-  sheetsUrl: process.env.SHEETS_URL || '',
+  geminiKey: '',  // User enters via Settings UI
+  sheetsUrl: '',  // User enters via Settings UI
   sheetsSecret: '',
   budgets: {
     [new Date().toISOString().slice(0, 7)]: {

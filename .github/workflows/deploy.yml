@@ -31,9 +31,6 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          SHEETS_URL: ${{ secrets.SHEETS_URL }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v4

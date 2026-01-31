@@ -8,9 +8,10 @@ import { extractReceiptData } from '../services/gemini';
 interface ExpenseFormProps {
   onSave: (expense: Omit<Expense, 'id' | 'timestamp' | 'synced'>) => void;
   apiKey: string;
+  isDark?: boolean;
 }
 
-const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
+const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true }) => {
   const [amount, setAmount] = useState<string>('');
   /* Corrected default Category to 'FOOD' to match Category type definition */
   const [category, setCategory] = useState<Category>('FOOD');
@@ -81,11 +82,11 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
   };
 
   return (
-    <div className="bg-[#111] border border-zinc-800 rounded-2xl p-6 mb-8 shadow-xl">
+    <div className={`rounded-2xl p-6 mb-8 shadow-xl ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
       <form onSubmit={handleSubmit} className="space-y-5">
-        
+
         {/* Type Toggle (Need/Want/Save) */}
-        <div className="flex p-1 bg-zinc-900 rounded-xl">
+        <div className={`flex p-1 rounded-xl ${isDark ? 'bg-zinc-900' : 'bg-gray-100'}`}>
           {/* Corrected values to uppercase ('NEED', 'WANT', 'SAVE') to match ExpenseType definition */}
           {(['NEED', 'WANT', 'SAVE'] as ExpenseType[]).map((t) => (
             <button
@@ -93,7 +94,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
               type="button"
               onClick={() => setType(t)}
               className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${
-                type === t ? 'bg-zinc-700 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-400'
+                type === t
+                  ? isDark ? 'bg-zinc-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                  : isDark ? 'text-zinc-500 hover:text-zinc-400' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {t}
@@ -103,14 +106,14 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
 
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Amount (¥)</label>
+            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Amount (¥)</label>
             <input
               type="number"
               inputMode="numeric"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
-              className="w-full bg-zinc-900 border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 focus:ring-white/10 transition-all outline-none"
+              className={`w-full border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 transition-all outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
               required
             />
           </div>
@@ -120,13 +123,15 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
               onClick={() => fileInputRef.current?.click()}
               disabled={isScanning || !apiKey}
               className={`p-4 rounded-xl flex items-center justify-center transition-all ${
-                isScanning ? 'bg-zinc-800' : 'bg-zinc-800 hover:bg-zinc-700 active:scale-95 border border-zinc-700'
+                isScanning
+                  ? isDark ? 'bg-zinc-800' : 'bg-gray-200'
+                  : isDark ? 'bg-zinc-800 hover:bg-zinc-700 active:scale-95 border border-zinc-700' : 'bg-gray-100 hover:bg-gray-200 active:scale-95 border border-gray-300'
               }`}
             >
               {isScanning ? (
-                <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                <div className={`w-6 h-6 border-2 rounded-full animate-spin ${isDark ? 'border-white/20 border-t-white' : 'border-gray-300 border-t-gray-600'}`} />
               ) : (
-                <ICONS.Camera className="w-6 h-6 text-zinc-400" />
+                <ICONS.Camera className={`w-6 h-6 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`} />
               )}
             </button>
             <input
@@ -142,11 +147,11 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
 
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Category</label>
+            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Category</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
-              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-3 text-sm focus:ring-2 focus:ring-white/10 outline-none appearance-none font-medium"
+              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
             >
               {CATEGORIES.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
@@ -154,11 +159,11 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Payment</label>
+            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Payment</label>
             <select
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-3 text-sm focus:ring-2 focus:ring-white/10 outline-none appearance-none font-medium"
+              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
             >
               {PAYMENT_METHODS.map(method => (
                 <option key={method} value={method}>{method}</option>
@@ -166,30 +171,30 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Date</label>
+            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>
             <input
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-3 text-sm focus:ring-2 focus:ring-white/10 outline-none font-medium text-white"
+              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Store / Description</label>
+          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Store / Description</label>
           <input
             type="text"
             value={store}
             onChange={(e) => setStore(e.target.value)}
             placeholder="Seven-Eleven, Amazon, etc."
-            className="w-full bg-zinc-900 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-white/10 outline-none font-medium"
+            className={`w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10 placeholder:text-zinc-600' : 'bg-gray-100 text-gray-900 focus:ring-gray-300 placeholder:text-gray-400'}`}
           />
         </div>
 
         <button
           type="submit"
-          className="w-full bg-white text-black font-bold py-4 rounded-xl hover:bg-zinc-200 active:scale-[0.98] transition-all shadow-lg"
+          className={`w-full font-bold py-4 rounded-xl active:scale-[0.98] transition-all shadow-lg ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
         >
           Save Entry
         </button>

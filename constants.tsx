@@ -1,12 +1,12 @@
 
 import React from 'react';
-import { 
+import {
   Home,
   Zap,
-  Utensils, 
-  Bus, 
-  ShoppingBag, 
-  Smile, 
+  Utensils,
+  Bus,
+  ShoppingBag,
+  Smile,
   PiggyBank,
   AlertCircle,
   Plus,
@@ -19,7 +19,9 @@ import {
   Table,
   ChevronLeft,
   ChevronRight,
-  Calendar
+  Calendar,
+  Sun,
+  Moon
 } from 'lucide-react';
 import { Category, ExpenseType, AppConfig, MonthlyBudget, PaymentMethod } from './types';
 
@@ -82,7 +84,9 @@ export const ICONS = {
   Table,
   ChevronLeft,
   ChevronRight,
-  Calendar
+  Calendar,
+  Sun,
+  Moon
 };
 
 const createEmptyBudget = (): MonthlyBudget => ({
@@ -119,7 +123,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     cash: 0,
     bank: 0,
     lastUpdated: ''
-  }
+  },
+  theme: 'dark'
 };
 
 export const getBudgetForMonth = (budgets: Record<string, MonthlyBudget>, monthKey: string): MonthlyBudget => {

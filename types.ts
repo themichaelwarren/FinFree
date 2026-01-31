@@ -3,6 +3,8 @@ export type ExpenseType = 'NEED' | 'WANT' | 'SAVE' | 'DEBT';
 
 export type PaymentMethod = 'Cash' | 'Card' | 'Bank';
 
+export type Theme = 'light' | 'dark';
+
 export type Category = 
   | 'RENT' 
   | 'ELECTRIC' 
@@ -52,6 +54,7 @@ export interface AppConfig {
   sheetsUrl: string;
   budgets: Record<string, MonthlyBudget>; // Keyed by YYYY-MM
   balances: AccountBalances;
+  theme: Theme;
 }
 
 export interface ReceiptItem {

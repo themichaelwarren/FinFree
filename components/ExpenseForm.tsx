@@ -82,8 +82,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
   };
 
   return (
-    <div className={`rounded-2xl p-6 mb-8 shadow-xl ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
-      <form onSubmit={handleSubmit} className="space-y-5">
+    <div className={`rounded-2xl p-6 mb-8 shadow-xl overflow-hidden ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+      <form onSubmit={handleSubmit} className="space-y-5 overflow-hidden">
 
         {/* Type Toggle (Need/Want/Save) */}
         <div className={`flex p-1 rounded-xl ${isDark ? 'bg-zinc-900' : 'bg-gray-100'}`}>
@@ -181,7 +181,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className={`w-full min-w-0 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
+            className={`w-full max-w-full min-w-0 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
           />
         </div>
 

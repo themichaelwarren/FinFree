@@ -47,6 +47,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ expenses, onDelete })
                   <div className="flex items-center gap-2 mt-1">
                     <span className="text-[10px] text-zinc-500 font-medium">{expense.date}</span>
                     <span className="text-[10px] text-zinc-600 font-medium">• {expense.category}</span>
+                    <span className="text-[10px] text-zinc-600 font-medium">• {expense.paymentMethod}</span>
                     {!expense.synced && (
                       <ICONS.CloudOff className="w-3 h-3 text-amber-500" />
                     )}

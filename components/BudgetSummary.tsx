@@ -1,14 +1,15 @@
 
 import React, { useState, useRef } from 'react';
-import { Expense, Category, AppConfig, ExpenseType } from '../types';
+import { Expense, Category, AppConfig, ExpenseType, AccountBalances } from '../types';
 import { CATEGORIES, getBudgetForMonth, ICONS } from '../constants';
 
 interface BudgetSummaryProps {
   expenses: Expense[];
   config: AppConfig;
+  onUpdateBalances?: (balances: AccountBalances) => void;
 }
 
-const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
+const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config, onUpdateBalances }) => {
   const [viewMonth, setViewMonth] = useState(new Date().toISOString().slice(0, 7));
   const monthInputRef = useRef<HTMLInputElement>(null);
   
@@ -117,7 +118,7 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
           const spent = monthlyExpenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
           const catBudget = budget.categories[cat]?.amount || 0;
           const percent = catBudget > 0 ? Math.min(Math.round((spent / catBudget) * 100), 100) : 0;
-          
+
           if (spent === 0 && catBudget === 0) return null;
 
           return (
@@ -136,7 +137,7 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
                 </div>
               </div>
               <div className="h-1 w-full bg-zinc-900/50 rounded-full overflow-hidden border border-zinc-800/30">
-                <div 
+                <div
                   className={`h-full transition-all duration-1000 ${spent > catBudget && catBudget > 0 ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]' : 'bg-zinc-700'}`}
                   style={{ width: `${percent}%` }}
                 />
@@ -145,6 +146,59 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
           );
         })}
       </div>
+
+      {/* Account Balances */}
+      {onUpdateBalances && (
+        <div className="mt-8 pt-6 border-t border-zinc-800/50 relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Account Balances</h3>
+            {config.balances?.lastUpdated && (
+              <span className="text-[8px] text-zinc-600">
+                Updated {new Date(config.balances.lastUpdated).toLocaleDateString()}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800/50">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Cash</p>
+              <div className="flex items-center gap-1">
+                <span className="text-zinc-500 font-bold">¥</span>
+                <input
+                  type="number"
+                  value={config.balances?.cash || ''}
+                  onChange={(e) => onUpdateBalances({
+                    ...config.balances,
+                    cash: Number(e.target.value) || 0,
+                    lastUpdated: new Date().toISOString()
+                  })}
+                  className="w-full bg-transparent text-lg font-bold text-white focus:ring-0 p-0 outline-none"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+            <div className="bg-zinc-900/50 rounded-xl p-4 border border-zinc-800/50">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mb-1">Bank</p>
+              <div className="flex items-center gap-1">
+                <span className="text-zinc-500 font-bold">¥</span>
+                <input
+                  type="number"
+                  value={config.balances?.bank || ''}
+                  onChange={(e) => onUpdateBalances({
+                    ...config.balances,
+                    bank: Number(e.target.value) || 0,
+                    lastUpdated: new Date().toISOString()
+                  })}
+                  className="w-full bg-transparent text-lg font-bold text-white focus:ring-0 p-0 outline-none"
+                  placeholder="0"
+                />
+              </div>
+            </div>
+          </div>
+          <p className="text-xs text-zinc-400 mt-3 font-bold">
+            Total: ¥{((config.balances?.cash || 0) + (config.balances?.bank || 0)).toLocaleString()}
+          </p>
+        </div>
+      )}
     </div>
   );
 };

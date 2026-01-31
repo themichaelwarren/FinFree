@@ -60,7 +60,9 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave }) => {
   const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(selectedMonth + '-01'));
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 lg:grid lg:grid-cols-3 lg:gap-8">
+      {/* Left Column - Month & Salary (1 col on desktop) */}
+      <div className="space-y-6 mb-6 lg:mb-0">
       {/* Month Selector Header */}
       <div className="flex items-center justify-between bg-zinc-900 border border-zinc-800 rounded-2xl p-2 pr-4 shadow-sm">
         <div className="flex items-center gap-1">
@@ -136,7 +138,10 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave }) => {
           </div>
         </div>
       </div>
+      </div>
 
+      {/* Right Column - Budget Table (2 cols on desktop) */}
+      <div className="lg:col-span-2 space-y-6">
       {/* Expenses Table */}
       <div className="bg-zinc-900/20 border border-zinc-800 rounded-3xl overflow-hidden shadow-sm">
         <div className="p-5 border-b border-zinc-800 bg-zinc-900/40 flex items-center justify-between">
@@ -207,14 +212,15 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave }) => {
         </div>
       </div>
       
-      <div className="pb-12 px-2">
+      <div className="pb-12 px-2 lg:pb-0">
         <div className="flex items-start gap-3 bg-zinc-900/30 p-4 rounded-2xl border border-zinc-800/50">
           <ICONS.AlertCircle className="w-4 h-4 text-zinc-600 mt-0.5 shrink-0" />
           <p className="text-[10px] text-zinc-500 leading-relaxed font-medium">
-            Setting your budget ahead of time helps you visualize your cash flow. 
+            Setting your budget ahead of time helps you visualize your cash flow.
             The system uses the budget for {monthName} to calculate your progress in the Track tab.
           </p>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -10,7 +10,12 @@ const STORAGE_KEYS = {
 export const storage = {
   getExpenses: (): Expense[] => {
     const data = localStorage.getItem(STORAGE_KEYS.EXPENSES);
-    return data ? JSON.parse(data) : [];
+    if (!data) return [];
+    // Migrate old expenses without paymentMethod
+    return JSON.parse(data).map((e: Expense) => ({
+      ...e,
+      paymentMethod: e.paymentMethod || 'Cash'
+    }));
   },
 
   saveExpense: (expense: Expense) => {
@@ -36,7 +41,14 @@ export const storage = {
 
   getConfig: (): AppConfig => {
     const data = localStorage.getItem(STORAGE_KEYS.CONFIG);
-    return data ? JSON.parse(data) : DEFAULT_CONFIG;
+    if (!data) return DEFAULT_CONFIG;
+    // Merge with defaults to pick up new fields like balances
+    const stored = JSON.parse(data);
+    return {
+      ...DEFAULT_CONFIG,
+      ...stored,
+      balances: { ...DEFAULT_CONFIG.balances, ...stored.balances }
+    };
   },
 
   saveConfig: (config: AppConfig) => {

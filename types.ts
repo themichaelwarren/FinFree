@@ -1,6 +1,8 @@
 
 export type ExpenseType = 'NEED' | 'WANT' | 'SAVE' | 'DEBT';
 
+export type PaymentMethod = 'Cash' | 'Card' | 'Bank';
+
 export type Category = 
   | 'RENT' 
   | 'ELECTRIC' 
@@ -22,6 +24,7 @@ export interface Expense {
   amount: number;
   category: Category;
   type: ExpenseType;
+  paymentMethod: PaymentMethod;
   store: string;
   notes: string;
   source: 'manual' | 'receipt';
@@ -38,10 +41,17 @@ export interface MonthlyBudget {
   categories: Record<Category, CategoryBudget>;
 }
 
+export interface AccountBalances {
+  cash: number;
+  bank: number;
+  lastUpdated: string;
+}
+
 export interface AppConfig {
   geminiKey: string;
   sheetsUrl: string;
   budgets: Record<string, MonthlyBudget>; // Keyed by YYYY-MM
+  balances: AccountBalances;
 }
 
 export interface ReceiptItem {

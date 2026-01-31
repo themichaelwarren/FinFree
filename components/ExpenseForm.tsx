@@ -1,8 +1,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 /* Use CATEGORY_TYPES instead of CATEGORY_DEFAULTS as defined in constants.tsx */
-import { CATEGORIES, ICONS, CATEGORY_TYPES } from '../constants';
-import { Category, ExpenseType, Expense, ReceiptExtraction } from '../types';
+import { CATEGORIES, ICONS, CATEGORY_TYPES, PAYMENT_METHODS } from '../constants';
+import { Category, ExpenseType, Expense, ReceiptExtraction, PaymentMethod } from '../types';
 import { extractReceiptData } from '../services/gemini';
 
 interface ExpenseFormProps {
@@ -19,6 +19,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
   const [store, setStore] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [isScanning, setIsScanning] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -37,6 +38,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
       amount: Number(amount),
       category,
       type,
+      paymentMethod,
       store: store || 'Unknown Store',
       date,
       notes,
@@ -48,6 +50,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
     setStore('');
     setNotes('');
     setDate(new Date().toISOString().split('T')[0]);
+    setPaymentMethod('Cash');
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -137,16 +140,28 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-3 gap-3">
           <div>
             <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Category</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
-              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-white/10 outline-none appearance-none font-medium"
+              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-3 text-sm focus:ring-2 focus:ring-white/10 outline-none appearance-none font-medium"
             >
               {CATEGORIES.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Payment</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-3 text-sm focus:ring-2 focus:ring-white/10 outline-none appearance-none font-medium"
+            >
+              {PAYMENT_METHODS.map(method => (
+                <option key={method} value={method}>{method}</option>
               ))}
             </select>
           </div>
@@ -156,7 +171,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey }) => {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 focus:ring-white/10 outline-none font-medium text-white"
+              className="w-full bg-zinc-900 border-none rounded-xl py-3 px-3 text-sm focus:ring-2 focus:ring-white/10 outline-none font-medium text-white"
             />
           </div>
         </div>

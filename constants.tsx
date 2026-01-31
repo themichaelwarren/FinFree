@@ -21,7 +21,7 @@ import {
   ChevronRight,
   Calendar
 } from 'lucide-react';
-import { Category, ExpenseType, AppConfig, MonthlyBudget } from './types';
+import { Category, ExpenseType, AppConfig, MonthlyBudget, PaymentMethod } from './types';
 
 export const CATEGORIES: Category[] = [
   'RENT',
@@ -37,6 +37,8 @@ export const CATEGORIES: Category[] = [
   'SAVE',
   'DEBT'
 ];
+
+export const PAYMENT_METHODS: PaymentMethod[] = ['Cash', 'Card', 'Bank'];
 
 export const CATEGORY_TYPES: Record<Category, ExpenseType> = {
   RENT: 'NEED',
@@ -112,6 +114,11 @@ export const DEFAULT_CONFIG: AppConfig = {
         DEBT: { amount: 0, type: 'DEBT' }
       }
     }
+  },
+  balances: {
+    cash: 0,
+    bank: 0,
+    lastUpdated: ''
   }
 };
 

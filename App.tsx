@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Expense, AppConfig } from './types';
+import { Expense, AppConfig, AccountBalances } from './types';
 import { storage } from './services/storage';
 import { ICONS } from './constants';
 import ExpenseForm from './components/ExpenseForm';
@@ -84,13 +84,27 @@ const App: React.FC = () => {
     setConfig(newConfig);
   };
 
+  const handleBalanceUpdate = (balances: AccountBalances) => {
+    const newConfig = { ...config, balances };
+    storage.saveConfig(newConfig);
+    setConfig(newConfig);
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'track':
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <BudgetSummary expenses={expenses} config={config} />
-            <ExpenseForm onSave={handleSaveExpense} apiKey={config.geminiKey} />
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 lg:grid lg:grid-cols-2 lg:gap-8">
+            <div>
+              <BudgetSummary expenses={expenses} config={config} onUpdateBalances={handleBalanceUpdate} />
+            </div>
+            <div>
+              <ExpenseForm onSave={handleSaveExpense} apiKey={config.geminiKey} />
+              <div className="hidden lg:block mt-6">
+                <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.2em] px-1 mb-4">Recent</h3>
+                <TransactionList expenses={expenses.slice(0, 5)} onDelete={handleDeleteExpense} />
+              </div>
+            </div>
           </div>
         );
       case 'budget':
@@ -107,7 +121,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto px-4 pt-8 pb-32 min-h-screen relative text-zinc-100">
+    <div className="max-w-md lg:max-w-5xl mx-auto px-4 lg:px-8 pt-8 pb-32 min-h-screen relative text-zinc-100">
       {/* Header */}
       <div className="flex justify-between items-center mb-10">
         <div>
@@ -132,7 +146,7 @@ const App: React.FC = () => {
       </main>
 
       {/* Navigation */}
-      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm bg-black/60 backdrop-blur-2xl border border-zinc-800/50 rounded-[2.5rem] p-2 flex items-center justify-between shadow-2xl z-40">
+      <nav className="fixed bottom-6 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-sm lg:max-w-md bg-black/60 backdrop-blur-2xl border border-zinc-800/50 rounded-[2.5rem] p-2 flex items-center justify-between shadow-2xl z-40">
         <button 
           onClick={() => setActiveTab('track')}
           className={`flex-1 py-3 px-4 rounded-[2rem] flex flex-col items-center gap-1 transition-all duration-300 ${

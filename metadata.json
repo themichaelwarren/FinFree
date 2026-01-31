@@ -1,0 +1,7 @@
+{
+  "name": "FinFree - Minimal Expense Tracker",
+  "description": "A minimal, Japanese-focused expense tracker with Gemini OCR and Google Sheets sync.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

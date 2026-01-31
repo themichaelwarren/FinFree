@@ -164,13 +164,11 @@ const AppContent: React.FC = () => {
     setConfig(newConfig);
 
     const syncMode = getSyncMode(newConfig);
-    console.log('handleConfigUpdate - syncMode:', syncMode, 'isOnline:', isOnline);
 
     // Sync config to cloud
     if (isOnline && syncMode !== 'local') {
       try {
         if (syncMode === 'oauth' && user?.accessToken && newConfig.spreadsheetId) {
-          console.log('Syncing config via OAuth...');
           // OAuth mode: sync directly via Sheets API
           await sheetsApi.saveConfig(user.accessToken, newConfig.spreadsheetId, {
             theme: newConfig.theme,
@@ -179,11 +177,8 @@ const AppContent: React.FC = () => {
 
           // If budgets changed, sync to dedicated Budgets sheet
           const budgetsChanged = JSON.stringify(newConfig.budgets) !== JSON.stringify(oldConfig.budgets);
-          console.log('Budgets changed:', budgetsChanged);
           if (budgetsChanged) {
-            console.log('Syncing budgets to Sheets...');
             await sheetsApi.saveBudgets(user.accessToken, newConfig.spreadsheetId, newConfig.budgets);
-            console.log('Budgets synced successfully');
           }
         } else if (syncMode === 'appsscript') {
           // Apps Script mode

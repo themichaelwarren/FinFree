@@ -30,11 +30,14 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
 
   const handleSalaryChange = (val: string) => {
     const num = parseInt(val) || 0;
-    const newConfig = { ...config };
+    const newConfig = {
+      ...config,
+      budgets: JSON.parse(JSON.stringify(config.budgets))
+    };
     if (!newConfig.budgets[selectedMonth]) {
-      newConfig.budgets[selectedMonth] = { 
+      newConfig.budgets[selectedMonth] = {
         salary: num,
-        categories: JSON.parse(JSON.stringify(budget.categories)) 
+        categories: JSON.parse(JSON.stringify(budget.categories))
       };
     } else {
       newConfig.budgets[selectedMonth].salary = num;
@@ -44,9 +47,12 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
 
   const handleCategoryAmountChange = (cat: Category, val: string) => {
     const num = parseInt(val) || 0;
-    const newConfig = { ...config };
+    const newConfig = {
+      ...config,
+      budgets: JSON.parse(JSON.stringify(config.budgets))
+    };
     if (!newConfig.budgets[selectedMonth]) {
-      newConfig.budgets[selectedMonth] = { 
+      newConfig.budgets[selectedMonth] = {
         salary: budget.salary,
         categories: JSON.parse(JSON.stringify(budget.categories))
       };

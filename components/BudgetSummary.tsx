@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Expense, Category, AppConfig, ExpenseType } from '../types';
 import { CATEGORIES, getBudgetForMonth, ICONS } from '../constants';
 
@@ -10,6 +10,7 @@ interface BudgetSummaryProps {
 
 const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
   const [viewMonth, setViewMonth] = useState(new Date().toISOString().slice(0, 7));
+  const monthInputRef = useRef<HTMLInputElement>(null);
   
   const budget = getBudgetForMonth(config.budgets, viewMonth);
 
@@ -50,17 +51,22 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
             <button onClick={() => adjustMonth(-1)} className="p-1 hover:bg-zinc-800 rounded text-zinc-600 hover:text-zinc-400 transition-colors">
               <ICONS.ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <label className="relative cursor-pointer inline-block">
+            <div className="relative inline-block">
               <input
+                ref={monthInputRef}
                 type="month"
                 value={viewMonth}
                 onChange={(e) => setViewMonth(e.target.value)}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
               />
-              <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] hover:text-zinc-300 transition-colors">
+              <button
+                type="button"
+                onClick={() => monthInputRef.current?.showPicker()}
+                className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] hover:text-zinc-300 transition-colors cursor-pointer"
+              >
                 {monthName}
-              </span>
-            </label>
+              </button>
+            </div>
             <button onClick={() => adjustMonth(1)} className="p-1 hover:bg-zinc-800 rounded text-zinc-600 hover:text-zinc-400 transition-colors">
               <ICONS.ChevronRight className="w-3.5 h-3.5" />
             </button>

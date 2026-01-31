@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { CATEGORIES, CATEGORY_TYPES, ICONS } from '../constants';
 import { AppConfig, MonthlyBudget, Category, ExpenseType } from '../types';
 
@@ -10,6 +10,7 @@ interface BudgetManagerProps {
 
 const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const monthInputRef = useRef<HTMLInputElement>(null);
   
   const budget = config.budgets[selectedMonth] || {
     salary: 0,
@@ -69,20 +70,25 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave }) => {
           >
             <ICONS.ChevronLeft className="w-5 h-5" />
           </button>
-          <label className="relative cursor-pointer">
+          <div className="relative">
             <input
+              ref={monthInputRef}
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
             />
-            <div className="px-4 py-2 bg-zinc-800/50 rounded-xl border border-zinc-700/50 flex items-center gap-3 hover:bg-zinc-800 transition-colors">
+            <button
+              type="button"
+              onClick={() => monthInputRef.current?.showPicker()}
+              className="px-4 py-2 bg-zinc-800/50 rounded-xl border border-zinc-700/50 flex items-center gap-3 hover:bg-zinc-800 transition-colors cursor-pointer"
+            >
               <ICONS.Calendar className="w-4 h-4 text-zinc-500" />
               <span className="text-sm font-bold tracking-tight text-zinc-200">
                 {monthName}
               </span>
-            </div>
-          </label>
+            </button>
+          </div>
           <button 
             onClick={() => adjustMonth(1)}
             className="p-3 hover:bg-zinc-800 rounded-xl transition-colors text-zinc-400 hover:text-white"

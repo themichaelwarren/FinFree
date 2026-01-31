@@ -223,7 +223,8 @@ const Settings: React.FC<SettingsProps> = ({ config, onSave, onClose, isDark = t
         <div className={`mt-8 pt-6 border-t ${isDark ? 'border-zinc-800' : 'border-gray-200'}`}>
           <button
             onClick={() => {
-              onSave(form);
+              // Merge form with current spreadsheetId from AuthContext
+              onSave({ ...form, spreadsheetId });
               onClose();
             }}
             className={`w-full font-semibold py-4 rounded-xl active:scale-[0.98] transition-all ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}

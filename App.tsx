@@ -65,8 +65,10 @@ const AppContent: React.FC = () => {
         if (syncMode === 'oauth' && localConfig.spreadsheetId) {
           // OAuth mode: fetch directly from Sheets API
           const data = await sheetsApi.fetchAll(user.accessToken, localConfig.spreadsheetId);
+          // Prefer categories from dedicated sheet, fall back to legacy JSON in config
+          const categoriesFromCloud = data.categories || data.config?.categories || null;
           const cloudData = {
-            config: data.config as AppConfig | null,
+            config: { ...data.config, categories: categoriesFromCloud } as AppConfig | null,
             expenses: data.expenses,
             budgets: data.budgets
           };
@@ -201,6 +203,12 @@ const AppContent: React.FC = () => {
             theme: newConfig.theme,
             balances: newConfig.balances
           });
+
+          // If categories changed, sync to dedicated Categories sheet
+          const categoriesChanged = JSON.stringify(newConfig.categories) !== JSON.stringify(oldConfig.categories);
+          if (categoriesChanged && newConfig.categories) {
+            await sheetsApi.saveCategories(user.accessToken, newConfig.spreadsheetId, newConfig.categories);
+          }
 
           // If budgets changed, sync to dedicated Budgets sheet
           const budgetsChanged = JSON.stringify(newConfig.budgets) !== JSON.stringify(oldConfig.budgets);

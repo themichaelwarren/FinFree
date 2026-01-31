@@ -1,4 +1,4 @@
-import { Expense, AppConfig, MonthlyBudget, AccountBalances } from '../types';
+import { Expense, AppConfig, MonthlyBudget, AccountBalances, CategoryDefinition } from '../types';
 import { CATEGORIES, CATEGORY_TYPES } from '../constants';
 
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -47,7 +47,20 @@ export const sheetsApi = {
             }]
           },
           {
-            properties: { title: 'Config', index: 2 },
+            properties: { title: 'Categories', index: 2 },
+            data: [{
+              startRow: 0,
+              startColumn: 0,
+              rowData: [{
+                values: ['ID', 'Name', 'Type', 'Icon'].map(v => ({
+                  userEnteredValue: { stringValue: v },
+                  userEnteredFormat: { textFormat: { bold: true } }
+                }))
+              }]
+            }]
+          },
+          {
+            properties: { title: 'Config', index: 3 },
             data: [{
               startRow: 0,
               startColumn: 0,
@@ -293,11 +306,11 @@ export const sheetsApi = {
     const existing = await sheetsApi.getBudgets(accessToken, spreadsheetId);
     const merged = { ...existing, ...budgets };
 
-    // Build all rows
+    // Build all rows - iterate over actual budget categories, not hardcoded constant
     const rows: (string | number)[][] = [];
     for (const month in merged) {
       const budget = merged[month];
-      for (const category of CATEGORIES) {
+      for (const category in budget.categories) {
         const cat = budget.categories[category];
         if (cat) {
           rows.push([month, category, cat.type, cat.amount, budget.salary]);
@@ -312,7 +325,45 @@ export const sheetsApi = {
     }
   },
 
-  // Get config (theme, balances)
+  // Get categories from dedicated sheet
+  getCategories: async (accessToken: string, spreadsheetId: string): Promise<CategoryDefinition[] | null> => {
+    try {
+      const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Categories!A2:D');
+      if (!values || values.length === 0) return null;
+
+      return values.map(row => ({
+        id: String(row[0]),
+        name: String(row[1]),
+        defaultType: String(row[2]) as CategoryDefinition['defaultType'],
+        icon: String(row[3]) as CategoryDefinition['icon']
+      }));
+    } catch {
+      // Categories sheet might not exist in older spreadsheets
+      return null;
+    }
+  },
+
+  // Save categories to dedicated sheet
+  saveCategories: async (
+    accessToken: string,
+    spreadsheetId: string,
+    categories: CategoryDefinition[]
+  ): Promise<void> => {
+    const rows = categories.map(cat => [
+      cat.id,
+      cat.name,
+      cat.defaultType,
+      cat.icon
+    ]);
+
+    // Clear and rewrite
+    await sheetsApi.clearValues(accessToken, spreadsheetId, 'Categories!A2:D');
+    if (rows.length > 0) {
+      await sheetsApi.updateValues(accessToken, spreadsheetId, 'Categories!A2:D', rows);
+    }
+  },
+
+  // Get config (theme, balances) - categories are in dedicated sheet
   getConfig: async (accessToken: string, spreadsheetId: string): Promise<Partial<AppConfig>> => {
     const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Config!A2:B');
 
@@ -330,29 +381,42 @@ export const sheetsApi = {
           config.balances = { cash: 0, bank: 0, lastUpdated: '' };
         }
       }
+      // Legacy: categories used to be stored here as JSON, now in dedicated sheet
+      // We still read them for backwards compatibility during migration
+      else if (key === 'categories') {
+        try {
+          config.categories = JSON.parse(value);
+        } catch {
+          // Ignore parse failures
+        }
+      }
     });
 
     return config;
   },
 
-  // Save config
+  // Save config (theme, balances) - categories saved via saveCategories
   saveConfig: async (
     accessToken: string,
     spreadsheetId: string,
     config: { theme?: AppConfig['theme']; balances?: AccountBalances }
   ): Promise<void> => {
-    const rows: (string | number)[][] = [];
+    // Read existing config first to preserve values we're not updating
+    const existing = await sheetsApi.getConfig(accessToken, spreadsheetId);
 
-    if (config.theme) {
-      rows.push(['theme', config.theme]);
-    }
-    if (config.balances) {
-      rows.push(['balances', JSON.stringify(config.balances)]);
-    }
+    // Merge with new values
+    const merged = {
+      theme: config.theme ?? existing.theme ?? 'dark',
+      balances: config.balances ?? existing.balances ?? { cash: 0, bank: 0, lastUpdated: '' }
+    };
 
-    if (rows.length > 0) {
-      await sheetsApi.updateValues(accessToken, spreadsheetId, 'Config!A2:B', rows);
-    }
+    // Build rows for config values (no longer includes categories - use saveCategories)
+    const rows: (string | number)[][] = [
+      ['theme', merged.theme],
+      ['balances', JSON.stringify(merged.balances)]
+    ];
+
+    await sheetsApi.updateValues(accessToken, spreadsheetId, 'Config!A2:B', rows);
   },
 
   // Fetch all data at once
@@ -360,14 +424,16 @@ export const sheetsApi = {
     expenses: Expense[];
     budgets: Record<string, MonthlyBudget>;
     config: Partial<AppConfig>;
+    categories: CategoryDefinition[] | null;
   }> => {
-    const [expenses, budgets, config] = await Promise.all([
+    const [expenses, budgets, config, categories] = await Promise.all([
       sheetsApi.getExpenses(accessToken, spreadsheetId),
       sheetsApi.getBudgets(accessToken, spreadsheetId),
-      sheetsApi.getConfig(accessToken, spreadsheetId)
+      sheetsApi.getConfig(accessToken, spreadsheetId),
+      sheetsApi.getCategories(accessToken, spreadsheetId)
     ]);
 
-    return { expenses, budgets, config };
+    return { expenses, budgets, config, categories };
   },
 
   // Extract spreadsheet ID from URL

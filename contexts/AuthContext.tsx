@@ -36,20 +36,60 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [error, setError] = useState<string | null>(null);
   const [spreadsheetId, setSpreadsheetIdState] = useState<string | null>(null);
 
-  // Initialize from stored state
+  // Initialize from stored state and auto-refresh if needed
   useEffect(() => {
-    const storedUser = authService.getUser();
-    const config = storage.getConfig();
+    const initAuth = async () => {
+      const storedUser = authService.getUser();
+      const config = storage.getConfig();
 
-    if (storedUser) {
-      setUser(storedUser);
-    }
-    if (config.spreadsheetId) {
-      setSpreadsheetIdState(config.spreadsheetId);
-    }
+      if (storedUser) {
+        setUser(storedUser);
+      } else {
+        // Token expired - try to refresh silently
+        const clientId = authService.getClientId();
+        if (clientId) {
+          try {
+            const newUser = await authService.signIn(clientId);
+            setUser(newUser);
+          } catch {
+            // Silent refresh failed - user will need to sign in manually
+            console.log('Token expired, please sign in again');
+          }
+        }
+      }
 
-    setIsLoading(false);
+      if (config.spreadsheetId) {
+        setSpreadsheetIdState(config.spreadsheetId);
+      }
+
+      setIsLoading(false);
+    };
+
+    initAuth();
   }, []);
+
+  // Set up token refresh timer
+  useEffect(() => {
+    if (!user?.expiresAt) return;
+
+    // Refresh 5 minutes before expiry
+    const refreshTime = user.expiresAt - Date.now() - 300000;
+    if (refreshTime <= 0) return;
+
+    const timer = setTimeout(async () => {
+      const clientId = authService.getClientId();
+      if (clientId) {
+        try {
+          const newUser = await authService.signIn(clientId);
+          setUser(newUser);
+        } catch {
+          // Refresh failed - user will be signed out when token expires
+        }
+      }
+    }, refreshTime);
+
+    return () => clearTimeout(timer);
+  }, [user?.expiresAt]);
 
   const signIn = useCallback(async (clientId: string) => {
     setIsLoading(true);

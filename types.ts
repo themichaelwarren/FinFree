@@ -5,19 +5,23 @@ export type PaymentMethod = 'Cash' | 'Card' | 'Bank';
 
 export type Theme = 'light' | 'dark';
 
-export type Category = 
-  | 'RENT' 
-  | 'ELECTRIC' 
-  | 'GAS' 
-  | 'WATER' 
-  | 'PHONE' 
-  | 'FOOD' 
-  | 'TRANSPORT' 
-  | 'TOILETRIES' 
-  | 'EAT OUT' 
-  | 'WANT' 
-  | 'SAVE' 
-  | 'DEBT';
+// Icon names available for categories
+export type CategoryIcon =
+  | 'Home' | 'Zap' | 'Flame' | 'Droplets' | 'Phone'
+  | 'Utensils' | 'Bus' | 'ShoppingBag' | 'Smile' | 'PiggyBank'
+  | 'CreditCard' | 'Coffee' | 'Gift' | 'Heart' | 'Briefcase'
+  | 'Gamepad2' | 'Shirt' | 'Dumbbell' | 'Stethoscope' | 'GraduationCap';
+
+// Category definition for customizable categories
+export interface CategoryDefinition {
+  id: string;           // Unique identifier (uppercase, e.g., 'RENT')
+  name: string;         // Display name (e.g., 'Rent')
+  icon: CategoryIcon;   // Icon to display
+  defaultType: ExpenseType;  // Default NEED/WANT/SAVE classification
+}
+
+// Category is now a string to support custom categories
+export type Category = string;
 
 export interface Expense {
   id: string;
@@ -65,6 +69,7 @@ export interface AppConfig {
   sheetsUrl: string;
   sheetsSecret: string; // Secret token for API authentication
   spreadsheetId: string | null; // For OAuth mode
+  categories: CategoryDefinition[]; // Custom categories
   budgets: Record<string, MonthlyBudget>; // Keyed by YYYY-MM
   balances: AccountBalances;
   theme: Theme;

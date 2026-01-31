@@ -191,6 +191,7 @@ export const storage = {
       sheetsUrl: localConfig.sheetsUrl,
       sheetsSecret: localConfig.sheetsSecret,
       spreadsheetId: localConfig.spreadsheetId,  // Preserve OAuth spreadsheet ID
+      categories: cloudData.config?.categories || localConfig.categories,
       theme: cloudData.config?.theme || localConfig.theme,
       budgets: cloudData.budgets || cloudData.config?.budgets || localConfig.budgets,
       balances: cloudData.config?.balances || localConfig.balances

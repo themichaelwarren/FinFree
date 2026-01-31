@@ -174,6 +174,17 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleUpdateExpense = (id: string, updates: Partial<Expense>) => {
+    // Mark as unsynced when edited so it re-syncs
+    const updated = storage.updateExpense(id, { ...updates, synced: false });
+    setExpenses(updated);
+
+    // Trigger sync
+    if (isOnline) {
+      handleSync();
+    }
+  };
+
   const handleConfigUpdate = async (newConfig: AppConfig) => {
     const oldConfig = config;
     storage.saveConfig(newConfig);
@@ -265,10 +276,9 @@ const AppContent: React.FC = () => {
               <BudgetSummary expenses={expenses} config={config} onUpdateBalances={handleBalanceUpdate} isDark={isDark} />
             </div>
             <div className="order-1 lg:order-2">
-              <ExpenseForm onSave={handleSaveExpense} apiKey={config.geminiKey} isDark={isDark} />
+              <ExpenseForm onSave={handleSaveExpense} apiKey={config.geminiKey} isDark={isDark} categories={config.categories} />
               <div className="hidden lg:block mt-6">
-                <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] px-1 mb-4 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Recent</h3>
-                <TransactionList expenses={expenses.slice(0, 5)} onDelete={handleDeleteExpense} isDark={isDark} />
+                <TransactionList expenses={expenses} onDelete={handleDeleteExpense} isDark={isDark} categories={config.categories} limit={5} />
               </div>
             </div>
           </div>
@@ -280,7 +290,7 @@ const AppContent: React.FC = () => {
       case 'history':
         return (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TransactionList expenses={expenses} onDelete={handleDeleteExpense} isDark={isDark} />
+            <TransactionList expenses={expenses} onDelete={handleDeleteExpense} onEdit={handleUpdateExpense} categories={config.categories} isDark={isDark} />
           </div>
         );
     }

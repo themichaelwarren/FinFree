@@ -1,35 +1,43 @@
 
-import React, { useState, useRef, useEffect } from 'react';
-/* Use CATEGORY_TYPES instead of CATEGORY_DEFAULTS as defined in constants.tsx */
-import { CATEGORIES, ICONS, CATEGORY_TYPES, PAYMENT_METHODS } from '../constants';
-import { Category, ExpenseType, Expense, ReceiptExtraction, PaymentMethod } from '../types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { ICONS, PAYMENT_METHODS, DEFAULT_CATEGORIES } from '../constants';
+import { Category, ExpenseType, Expense, ReceiptExtraction, PaymentMethod, CategoryDefinition } from '../types';
 import { extractReceiptData } from '../services/gemini';
 
 interface ExpenseFormProps {
   onSave: (expense: Omit<Expense, 'id' | 'timestamp' | 'synced'>) => void;
   apiKey: string;
   isDark?: boolean;
+  categories?: CategoryDefinition[];
 }
 
-const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true }) => {
+const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true, categories = DEFAULT_CATEGORIES }) => {
   const [amount, setAmount] = useState<string>('');
-  /* Corrected default Category to 'FOOD' to match Category type definition */
-  const [category, setCategory] = useState<Category>('FOOD');
-  /* Corrected default ExpenseType to 'NEED' to match ExpenseType type definition */
   const [type, setType] = useState<ExpenseType>('NEED');
+  const [category, setCategory] = useState<Category>('');
   const [store, setStore] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [isScanning, setIsScanning] = useState(false);
-  
+
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Smart defaults based on category
+  // Filter categories by selected type
+  const filteredCategories = useMemo(() =>
+    categories.filter(cat => cat.defaultType === type),
+    [categories, type]
+  );
+
+  // Auto-select first category when type changes or on mount
   useEffect(() => {
-    /* Use CATEGORY_TYPES instead of CATEGORY_DEFAULTS */
-    setType(CATEGORY_TYPES[category]);
-  }, [category]);
+    if (filteredCategories.length > 0) {
+      const currentCatInFiltered = filteredCategories.find(c => c.id === category);
+      if (!currentCatInFiltered) {
+        setCategory(filteredCategories[0].id);
+      }
+    }
+  }, [filteredCategories, category]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,8 +164,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
               onChange={(e) => setCategory(e.target.value as Category)}
               className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
             >
-              {CATEGORIES.map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
+              {filteredCategories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </select>
           </div>

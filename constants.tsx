@@ -3,11 +3,24 @@ import React from 'react';
 import {
   Home,
   Zap,
+  Flame,
+  Droplets,
+  Phone,
   Utensils,
   Bus,
   ShoppingBag,
   Smile,
   PiggyBank,
+  CreditCard,
+  Coffee,
+  Gift,
+  Heart,
+  Briefcase,
+  Gamepad2,
+  Shirt,
+  Dumbbell,
+  Stethoscope,
+  GraduationCap,
   AlertCircle,
   Plus,
   Camera,
@@ -21,56 +34,73 @@ import {
   ChevronRight,
   Calendar,
   Sun,
-  Moon
+  Moon,
+  Pencil,
+  Trash2,
+  X
 } from 'lucide-react';
-import { Category, ExpenseType, AppConfig, MonthlyBudget, PaymentMethod } from './types';
+import { Category, ExpenseType, AppConfig, MonthlyBudget, PaymentMethod, CategoryDefinition, CategoryIcon } from './types';
 
-export const CATEGORIES: Category[] = [
-  'RENT',
-  'ELECTRIC',
-  'GAS',
-  'WATER',
-  'PHONE',
-  'FOOD',
-  'TRANSPORT',
-  'TOILETRIES',
-  'EAT OUT',
-  'WANT',
-  'SAVE',
-  'DEBT'
+// Icon components map for dynamic rendering
+export const ICON_COMPONENTS: Record<CategoryIcon, React.ComponentType<{ className?: string }>> = {
+  Home, Zap, Flame, Droplets, Phone,
+  Utensils, Bus, ShoppingBag, Smile, PiggyBank,
+  CreditCard, Coffee, Gift, Heart, Briefcase,
+  Gamepad2, Shirt, Dumbbell, Stethoscope, GraduationCap
+};
+
+// Available icons for category picker
+export const AVAILABLE_ICONS: CategoryIcon[] = [
+  'Home', 'Zap', 'Flame', 'Droplets', 'Phone',
+  'Utensils', 'Bus', 'ShoppingBag', 'Smile', 'PiggyBank',
+  'CreditCard', 'Coffee', 'Gift', 'Heart', 'Briefcase',
+  'Gamepad2', 'Shirt', 'Dumbbell', 'Stethoscope', 'GraduationCap'
 ];
+
+// Default categories
+export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
+  { id: 'RENT', name: 'Rent', icon: 'Home', defaultType: 'NEED' },
+  { id: 'ELECTRIC', name: 'Electric', icon: 'Zap', defaultType: 'NEED' },
+  { id: 'GAS', name: 'Gas', icon: 'Flame', defaultType: 'NEED' },
+  { id: 'WATER', name: 'Water', icon: 'Droplets', defaultType: 'NEED' },
+  { id: 'PHONE', name: 'Phone', icon: 'Phone', defaultType: 'NEED' },
+  { id: 'FOOD', name: 'Food', icon: 'Utensils', defaultType: 'NEED' },
+  { id: 'TRANSPORT', name: 'Transport', icon: 'Bus', defaultType: 'NEED' },
+  { id: 'TOILETRIES', name: 'Toiletries', icon: 'ShoppingBag', defaultType: 'NEED' },
+  { id: 'EAT OUT', name: 'Eat Out', icon: 'Coffee', defaultType: 'WANT' },
+  { id: 'WANT', name: 'Want', icon: 'Smile', defaultType: 'WANT' },
+  { id: 'SAVE', name: 'Save', icon: 'PiggyBank', defaultType: 'SAVE' },
+  { id: 'DEBT', name: 'Debt', icon: 'CreditCard', defaultType: 'DEBT' }
+];
+
+// Helper to get categories array from CategoryDefinition[]
+export const getCategoryIds = (categories: CategoryDefinition[]): Category[] =>
+  categories.map(c => c.id);
+
+// Helper to get category types map from CategoryDefinition[]
+export const getCategoryTypes = (categories: CategoryDefinition[]): Record<Category, ExpenseType> =>
+  categories.reduce((acc, c) => {
+    acc[c.id] = c.defaultType;
+    return acc;
+  }, {} as Record<Category, ExpenseType>);
+
+// Helper to render category icon
+export const renderCategoryIcon = (iconName: CategoryIcon, className: string = "w-4 h-4"): React.ReactNode => {
+  const IconComponent = ICON_COMPONENTS[iconName];
+  return IconComponent ? <IconComponent className={className} /> : null;
+};
+
+// Legacy exports for backwards compatibility
+export const CATEGORIES: Category[] = getCategoryIds(DEFAULT_CATEGORIES);
+export const CATEGORY_TYPES: Record<Category, ExpenseType> = getCategoryTypes(DEFAULT_CATEGORIES);
 
 export const PAYMENT_METHODS: PaymentMethod[] = ['Cash', 'Card', 'Bank'];
 
-export const CATEGORY_TYPES: Record<Category, ExpenseType> = {
-  RENT: 'NEED',
-  ELECTRIC: 'NEED',
-  GAS: 'NEED',
-  WATER: 'NEED',
-  PHONE: 'NEED',
-  FOOD: 'NEED',
-  TRANSPORT: 'NEED',
-  TOILETRIES: 'NEED',
-  'EAT OUT': 'WANT',
-  WANT: 'WANT',
-  SAVE: 'SAVE',
-  DEBT: 'DEBT'
-};
-
-export const CATEGORY_ICONS: Record<Category, React.ReactNode> = {
-  RENT: <Home className="w-4 h-4" />,
-  ELECTRIC: <Zap className="w-4 h-4" />,
-  GAS: <Zap className="w-4 h-4" />,
-  WATER: <Zap className="w-4 h-4" />,
-  PHONE: <Zap className="w-4 h-4" />,
-  FOOD: <Utensils className="w-4 h-4" />,
-  TRANSPORT: <Bus className="w-4 h-4" />,
-  TOILETRIES: <ShoppingBag className="w-4 h-4" />,
-  'EAT OUT': <Utensils className="w-4 h-4" />,
-  WANT: <Smile className="w-4 h-4" />,
-  SAVE: <PiggyBank className="w-4 h-4" />,
-  DEBT: <AlertCircle className="w-4 h-4" />
-};
+// Legacy icon map (use renderCategoryIcon for dynamic categories)
+export const CATEGORY_ICONS: Record<string, React.ReactNode> = DEFAULT_CATEGORIES.reduce((acc, cat) => {
+  acc[cat.id] = renderCategoryIcon(cat.icon);
+  return acc;
+}, {} as Record<string, React.ReactNode>);
 
 export const ICONS = {
   Plus,
@@ -102,6 +132,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   sheetsUrl: '',  // User enters via Settings UI (Apps Script mode)
   sheetsSecret: '',  // Apps Script mode
   spreadsheetId: null,  // OAuth mode
+  categories: DEFAULT_CATEGORIES,
   budgets: {
     [new Date().toISOString().slice(0, 7)]: {
       salary: 320000,

@@ -55,12 +55,14 @@ const AppContent: React.FC = () => {
       const localConfig = storage.getConfig();
       const syncMode = getSyncMode(localConfig);
 
-      if (!navigator.onLine || syncMode === 'local' || isSyncing) return;
+      // Don't check isSyncing here - fetching (pull) should not be blocked by syncing (push)
+      if (!navigator.onLine || syncMode === 'local') return;
+      if (!user?.accessToken) return;  // Wait for user to be available
 
       setIsSyncing(true);
 
       try {
-        if (syncMode === 'oauth' && user?.accessToken && localConfig.spreadsheetId) {
+        if (syncMode === 'oauth' && localConfig.spreadsheetId) {
           // OAuth mode: fetch directly from Sheets API
           const data = await sheetsApi.fetchAll(user.accessToken, localConfig.spreadsheetId);
           const cloudData = {
@@ -83,6 +85,18 @@ const AppContent: React.FC = () => {
             setConfig(merged.config);
             setExpenses(merged.expenses);
           }
+        }
+
+        // After fetching, also push any unsynced local expenses to cloud
+        const localExpenses = storage.getExpenses();
+        const unsynced = localExpenses.filter(e => !e.synced);
+        if (unsynced.length > 0 && syncMode === 'oauth' && localConfig.spreadsheetId) {
+          await sheetsApi.addExpenses(user.accessToken, localConfig.spreadsheetId, unsynced);
+          let updated = localExpenses;
+          unsynced.forEach(e => {
+            updated = storage.updateExpense(e.id, { synced: true });
+          });
+          setExpenses(updated);
         }
       } catch (error) {
         console.error('Cloud sync failed:', error);

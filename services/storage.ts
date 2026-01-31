@@ -184,12 +184,13 @@ export const storage = {
     const localConfig = storage.getConfig();
     const localExpenses = storage.getExpenses();
 
-    // Merge config: cloud budgets/balances win, keep local API keys
+    // Merge config: cloud budgets/balances win, keep local API keys and OAuth settings
     // Prefer budgets from dedicated Budgets sheet if available, fall back to config.budgets
     const mergedConfig: AppConfig = {
       geminiKey: localConfig.geminiKey,
       sheetsUrl: localConfig.sheetsUrl,
       sheetsSecret: localConfig.sheetsSecret,
+      spreadsheetId: localConfig.spreadsheetId,  // Preserve OAuth spreadsheet ID
       theme: cloudData.config?.theme || localConfig.theme,
       budgets: cloudData.budgets || cloudData.config?.budgets || localConfig.budgets,
       balances: cloudData.config?.balances || localConfig.balances

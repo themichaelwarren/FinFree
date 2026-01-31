@@ -181,7 +181,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className={`w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
+            className={`w-full min-w-0 border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
           />
         </div>
 

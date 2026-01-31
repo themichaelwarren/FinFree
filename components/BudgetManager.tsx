@@ -152,9 +152,9 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
   const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(selectedMonth + '-01'));
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 lg:grid lg:grid-cols-3 lg:gap-8">
-      {/* Left Column - Month & Salary (1 col on desktop) */}
-      <div className="space-y-6 mb-6 lg:mb-0">
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
+      {/* Left Column - Month & Salary (1 col on desktop) - Sticky on desktop */}
+      <div className="space-y-6 mb-6 lg:mb-0 lg:sticky lg:top-8">
       {/* Month Selector Header */}
       <div className={`flex items-center justify-between rounded-2xl p-2 pr-4 shadow-sm ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
         <div className="flex items-center gap-1">

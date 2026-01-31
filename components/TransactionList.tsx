@@ -231,9 +231,14 @@ const TransactionList: React.FC<TransactionListProps> = ({
       )}
 
       {isPreviewMode && (
-        <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] px-1 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
-          Recent
-        </h3>
+        <div className="flex items-center justify-between px-1">
+          <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+            Recent
+          </h3>
+          <span className={`text-[10px] font-bold ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+            {filteredExpenses.length} entries
+          </span>
+        </div>
       )}
 
       {/* Transaction Groups */}
@@ -241,8 +246,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
         {groupedExpenses.length > 0 && groupedExpenses.some(g => g.expenses.length > 0) ? (
           groupedExpenses.filter(g => g.expenses.length > 0).map((group) => (
             <div key={group.key} className="space-y-2">
-              {/* Group Header */}
-              {groupBy !== 'none' && !isPreviewMode && (
+              {/* Group Header - shown in both full and preview modes when grouped by day */}
+              {(groupBy === 'day' || (!isPreviewMode && groupBy !== 'none')) && (
                 <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     {groupBy === 'category' && getCategoryIcon(group.key)}

@@ -203,15 +203,15 @@ const TransactionList: React.FC<TransactionListProps> = ({
             </div>
 
             {/* Group By Controls */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Group by:</span>
+                <span className={`hidden sm:inline text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Group:</span>
                 <div className={`flex p-0.5 rounded-lg ${isDark ? 'bg-zinc-900' : 'bg-gray-100'}`}>
                   {(['day', 'category', 'none'] as const).map((g) => (
                     <button
                       key={g}
                       onClick={() => setGroupBy(g)}
-                      className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                      className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
                         groupBy === g
                           ? isDark ? 'bg-zinc-700 text-white' : 'bg-white text-gray-900 shadow-sm'
                           : isDark ? 'text-zinc-500' : 'text-gray-500'
@@ -222,8 +222,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
                   ))}
                 </div>
               </div>
-              <div className={`text-[10px] font-bold ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
-                {filteredExpenses.length} items • ¥{totalFiltered.toLocaleString()}
+              <div className={`text-[10px] font-bold whitespace-nowrap ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+                {filteredExpenses.length} • ¥{totalFiltered.toLocaleString()}
               </div>
             </div>
           </div>
@@ -269,47 +269,47 @@ const TransactionList: React.FC<TransactionListProps> = ({
                     >
                       {/* Main Row */}
                       <div
-                        className={`p-4 flex items-center justify-between cursor-pointer group ${isDark ? 'active:bg-zinc-800' : 'active:bg-gray-50'}`}
+                        className={`p-4 flex items-center justify-between gap-3 cursor-pointer group ${isDark ? 'active:bg-zinc-800' : 'active:bg-gray-50'}`}
                         onClick={() => !isEditing && setExpandedId(isExpanded ? null : expense.id)}
                       >
-                        <div className="flex items-center gap-4">
-                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isDark ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${isDark ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50' : 'bg-gray-100 text-gray-500 border border-gray-200'}`}>
                             {getCategoryIcon(expense.category)}
                           </div>
-                          <div>
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <p className={`font-bold leading-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              <p className={`font-bold leading-tight truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                 {expense.store}
                               </p>
-                              <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${getTypeColor(expense.type)}`}>
+                              <span className={`shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${getTypeColor(expense.type)}`}>
                                 {expense.type}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-1.5 mt-1 overflow-hidden">
                               {groupBy !== 'day' && (
-                                <span className={`text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+                                <span className={`shrink-0 text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
                                   {formatDate(expense.date)}
                                 </span>
                               )}
                               {groupBy !== 'category' && (
-                                <span className={`text-[10px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                                <span className={`truncate text-[10px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                                   {groupBy === 'day' ? getCategoryName(expense.category) : `• ${getCategoryName(expense.category)}`}
                                 </span>
                               )}
-                              <span className={`text-[10px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                              <span className={`shrink-0 text-[10px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                                 • {expense.paymentMethod}
                               </span>
                               {expense.notes && (
-                                <span className={`text-[10px] ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>📝</span>
+                                <span className={`shrink-0 text-[10px] ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>📝</span>
                               )}
                               {!expense.synced && (
-                                <ICONS.CloudOff className="w-3 h-3 text-amber-500" />
+                                <ICONS.CloudOff className="shrink-0 w-3 h-3 text-amber-500" />
                               )}
                             </div>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <p className={`font-bold tracking-tight text-lg ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <p className={`font-bold tracking-tight text-base whitespace-nowrap ${isDark ? 'text-white' : 'text-gray-900'}`}>
                             ¥{expense.amount.toLocaleString()}
                           </p>
                           <ICONS.ChevronRight className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-90' : ''} ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />

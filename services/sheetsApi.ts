@@ -187,31 +187,74 @@ export const sheetsApi = {
     }));
   },
 
-  // Add expenses
+  // Add or update expenses
   addExpenses: async (accessToken: string, spreadsheetId: string, expenses: Expense[]): Promise<void> => {
     if (expenses.length === 0) return;
 
-    // Get existing IDs to avoid duplicates
+    // Get existing expenses to determine which need adding vs updating
     const existing = await sheetsApi.getExpenses(accessToken, spreadsheetId);
     const existingIds = new Set(existing.map(e => e.id));
 
     const newExpenses = expenses.filter(e => !existingIds.has(e.id));
-    if (newExpenses.length === 0) return;
+    const updatedExpenses = expenses.filter(e => existingIds.has(e.id));
 
-    const rows = newExpenses.map(e => [
-      e.id,
-      e.date,
-      e.timestamp,
-      e.amount,
-      e.category,
-      e.type,
-      e.paymentMethod || 'Cash',
-      e.store,
-      e.notes || '',
-      e.source || 'manual'
-    ]);
+    // Append new expenses
+    if (newExpenses.length > 0) {
+      const rows = newExpenses.map(e => [
+        e.id,
+        e.date,
+        e.timestamp,
+        e.amount,
+        e.category,
+        e.type,
+        e.paymentMethod || 'Cash',
+        e.store,
+        e.notes || '',
+        e.source || 'manual'
+      ]);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Expenses!A:J', rows);
+    }
 
-    await sheetsApi.appendValues(accessToken, spreadsheetId, 'Expenses!A:J', rows);
+    // Update existing expenses
+    if (updatedExpenses.length > 0) {
+      await sheetsApi.updateExpenses(accessToken, spreadsheetId, updatedExpenses);
+    }
+  },
+
+  // Update existing expenses by finding their rows and updating in place
+  updateExpenses: async (accessToken: string, spreadsheetId: string, expenses: Expense[]): Promise<void> => {
+    if (expenses.length === 0) return;
+
+    // Get all current data to find row numbers
+    const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Expenses!A:J');
+
+    // Build a map of ID -> row index (1-based, accounting for header)
+    const idToRow = new Map<string, number>();
+    values.forEach((row, index) => {
+      if (index === 0) return; // Skip header
+      const id = String(row[0]);
+      idToRow.set(id, index + 1); // +1 because Sheets rows are 1-indexed
+    });
+
+    // Update each expense in its row
+    for (const expense of expenses) {
+      const rowNum = idToRow.get(expense.id);
+      if (rowNum) {
+        const row = [
+          expense.id,
+          expense.date,
+          expense.timestamp,
+          expense.amount,
+          expense.category,
+          expense.type,
+          expense.paymentMethod || 'Cash',
+          expense.store,
+          expense.notes || '',
+          expense.source || 'manual'
+        ];
+        await sheetsApi.updateValues(accessToken, spreadsheetId, `Expenses!A${rowNum}:J${rowNum}`, [row]);
+      }
+    }
   },
 
   // Get budgets

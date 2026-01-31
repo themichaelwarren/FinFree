@@ -148,41 +148,68 @@ function saveExpenses(ss, expenses) {
     sheet.getRange('A1:K1').setFontWeight('bold');
   }
 
-  // Get existing IDs to avoid duplicates
+  // Get existing data to check for duplicates and updates
   const existingData = sheet.getDataRange().getValues();
-  const existingIds = new Set(existingData.slice(1).map(row => row[0]));
 
-  // Filter new expenses
-  const newExpenses = (Array.isArray(expenses) ? expenses : [expenses])
-    .filter(exp => !existingIds.has(exp.id));
+  // Build a map of existing IDs to their row numbers (1-indexed, accounting for header)
+  const idToRowNum = {};
+  existingData.slice(1).forEach((row, index) => {
+    idToRowNum[row[0]] = index + 2; // +2 because: +1 for 1-indexed, +1 for header row
+  });
 
-  if (newExpenses.length === 0) {
-    return ContentService.createTextOutput(JSON.stringify({
-      success: true,
-      added: 0
-    })).setMimeType(ContentService.MimeType.JSON);
+  const expenseArray = Array.isArray(expenses) ? expenses : [expenses];
+
+  // Separate into new expenses and updates
+  const newExpenses = expenseArray.filter(exp => !idToRowNum[exp.id]);
+  const updatedExpenses = expenseArray.filter(exp => idToRowNum[exp.id]);
+
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  // Update existing expenses
+  for (const exp of updatedExpenses) {
+    const rowNum = idToRowNum[exp.id];
+    const rowData = [
+      exp.id,
+      exp.date,
+      exp.timestamp,
+      exp.amount,
+      exp.category,
+      exp.type,
+      exp.paymentMethod || 'Cash',
+      exp.store,
+      exp.notes || '',
+      exp.source || 'manual',
+      'true'
+    ];
+    sheet.getRange(rowNum, 1, 1, 11).setValues([rowData]);
+    updatedCount++;
   }
 
   // Append new expenses
-  const rows = newExpenses.map(exp => [
-    exp.id,
-    exp.date,
-    exp.timestamp,
-    exp.amount,
-    exp.category,
-    exp.type,
-    exp.paymentMethod || 'Cash',
-    exp.store,
-    exp.notes || '',
-    exp.source || 'manual',
-    'true'
-  ]);
+  if (newExpenses.length > 0) {
+    const rows = newExpenses.map(exp => [
+      exp.id,
+      exp.date,
+      exp.timestamp,
+      exp.amount,
+      exp.category,
+      exp.type,
+      exp.paymentMethod || 'Cash',
+      exp.store,
+      exp.notes || '',
+      exp.source || 'manual',
+      'true'
+    ]);
 
-  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 11).setValues(rows);
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 11).setValues(rows);
+    addedCount = rows.length;
+  }
 
   return ContentService.createTextOutput(JSON.stringify({
     success: true,
-    added: rows.length
+    added: addedCount,
+    updated: updatedCount
   })).setMimeType(ContentService.MimeType.JSON);
 }
 

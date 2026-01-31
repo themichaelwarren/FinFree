@@ -1,5 +1,5 @@
 
-import { Expense, AppConfig } from "../types";
+import { Expense, AppConfig, MonthlyBudget } from "../types";
 import { DEFAULT_CONFIG } from "../constants";
 
 const STORAGE_KEYS = {
@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
 export interface CloudData {
   config: AppConfig | null;
   expenses: Expense[];
+  budgets: Record<string, MonthlyBudget> | null;
 }
 
 export const storage = {
@@ -76,7 +77,8 @@ export const storage = {
 
       return {
         config: result.data.config || null,
-        expenses: result.data.expenses || []
+        expenses: result.data.expenses || [],
+        budgets: result.data.budgets || null
       };
     } catch (error) {
       console.error('Cloud fetch failed:', error);
@@ -96,12 +98,21 @@ export const storage = {
         sheetsSecret: ''    // Don't store secret in sheets
       };
 
-      await fetch(sheetsUrl, {
+      const response = await fetch(sheetsUrl, {
         method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ type: 'config', config: configToSync, secret })
       });
+
+      try {
+        const result = await response.json();
+        if (!result.success) {
+          console.error('Config sync failed:', result.error);
+          return false;
+        }
+      } catch {
+        // Response might be opaque
+      }
 
       return true;
     } catch (error) {
@@ -117,17 +128,54 @@ export const storage = {
     if (unsynced.length === 0) return [];
 
     try {
-      await fetch(sheetsUrl, {
+      const response = await fetch(sheetsUrl, {
         method: 'POST',
-        mode: 'no-cors',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain' },
         body: JSON.stringify({ expenses: unsynced, secret })
       });
+
+      // Try to get actual response for debugging
+      try {
+        const result = await response.json();
+        if (!result.success) {
+          console.error('Sync failed:', result.error);
+          return [];
+        }
+      } catch {
+        // Response might be opaque, assume success
+      }
 
       return unsynced.map(e => e.id);
     } catch (error) {
       console.error('Expense sync failed:', error);
       return [];
+    }
+  },
+
+  syncBudgetsToCloud: async (budgets: Record<string, MonthlyBudget>, sheetsUrl: string, secret: string): Promise<boolean> => {
+    if (!sheetsUrl || !secret) return false;
+
+    try {
+      const response = await fetch(sheetsUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ type: 'budgets', budgets, secret })
+      });
+
+      try {
+        const result = await response.json();
+        if (!result.success) {
+          console.error('Budgets sync failed:', result.error);
+          return false;
+        }
+      } catch {
+        // Response might be opaque
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Budgets sync failed:', error);
+      return false;
     }
   },
 
@@ -137,11 +185,13 @@ export const storage = {
     const localExpenses = storage.getExpenses();
 
     // Merge config: cloud budgets/balances win, keep local API keys
+    // Prefer budgets from dedicated Budgets sheet if available, fall back to config.budgets
     const mergedConfig: AppConfig = {
       geminiKey: localConfig.geminiKey,
       sheetsUrl: localConfig.sheetsUrl,
+      sheetsSecret: localConfig.sheetsSecret,
       theme: cloudData.config?.theme || localConfig.theme,
-      budgets: cloudData.config?.budgets || localConfig.budgets,
+      budgets: cloudData.budgets || cloudData.config?.budgets || localConfig.budgets,
       balances: cloudData.config?.balances || localConfig.balances
     };
 

@@ -49,10 +49,22 @@ export interface AccountBalances {
   lastUpdated: string;
 }
 
+export type SyncMode = 'oauth' | 'appsscript' | 'local';
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  picture: string;
+  accessToken: string;
+  expiresAt: number;
+}
+
 export interface AppConfig {
   geminiKey: string;
   sheetsUrl: string;
   sheetsSecret: string; // Secret token for API authentication
+  spreadsheetId: string | null; // For OAuth mode
   budgets: Record<string, MonthlyBudget>; // Keyed by YYYY-MM
   balances: AccountBalances;
   theme: Theme;

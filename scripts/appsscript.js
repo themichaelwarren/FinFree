@@ -16,6 +16,7 @@ const API_SECRET = 'xK9mP2qL7nR4wY6j';
 // Sheet names
 const EXPENSES_SHEET = 'Expenses';
 const CONFIG_SHEET = 'Config';
+const BUDGETS_SHEET = 'Budgets';
 
 function verifySecret(secret) {
   return secret === API_SECRET;
@@ -42,6 +43,11 @@ function doPost(e) {
     // Handle config sync
     if (data.type === 'config') {
       return saveConfig(ss, data.config);
+    }
+
+    // Handle budgets sync
+    if (data.type === 'budgets') {
+      return saveBudgets(ss, data.budgets);
     }
 
     // Handle expense sync (default behavior)
@@ -72,6 +78,10 @@ function doGet(e) {
 
     if (type === 'expenses' || type === 'all') {
       result.expenses = getExpenses(ss);
+    }
+
+    if (type === 'budgets' || type === 'all') {
+      result.budgets = getBudgets(ss);
     }
 
     return ContentService.createTextOutput(JSON.stringify({
@@ -202,4 +212,90 @@ function getExpenses(ss) {
     source: row[9] || 'manual',
     synced: true
   }));
+}
+
+function saveBudgets(ss, budgetsData) {
+  let sheet = ss.getSheetByName(BUDGETS_SHEET);
+
+  // Create Budgets sheet with headers if it doesn't exist
+  if (!sheet) {
+    sheet = ss.insertSheet(BUDGETS_SHEET);
+    sheet.getRange('A1:E1').setValues([['Month', 'Category', 'Type', 'Amount', 'Salary']]);
+    sheet.getRange('A1:E1').setFontWeight('bold');
+  }
+
+  // budgetsData is Record<string, MonthlyBudget> keyed by YYYY-MM
+  // Each MonthlyBudget has: { salary: number, categories: Record<Category, { amount, type }> }
+
+  const rows = [];
+  for (const month in budgetsData) {
+    const budget = budgetsData[month];
+    const salary = budget.salary || 0;
+
+    // Delete existing rows for this month
+    const existingData = sheet.getDataRange().getValues();
+    for (let i = existingData.length - 1; i >= 1; i--) {
+      if (existingData[i][0] === month) {
+        sheet.deleteRow(i + 1);
+      }
+    }
+
+    // Add rows for each category
+    for (const category in budget.categories) {
+      const cat = budget.categories[category];
+      rows.push([month, category, cat.type, cat.amount, salary]);
+    }
+  }
+
+  // Append new rows
+  if (rows.length > 0) {
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    message: 'Budgets saved',
+    rowsAdded: rows.length
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getBudgets(ss) {
+  const sheet = ss.getSheetByName(BUDGETS_SHEET);
+
+  if (!sheet) {
+    // Fall back to legacy config format
+    const config = getConfig(ss);
+    return config && config.budgets ? config.budgets : {};
+  }
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return {};
+  }
+
+  // Convert rows back to Record<string, MonthlyBudget> format
+  // Row format: [Month, Category, Type, Amount, Salary]
+  const budgets = {};
+
+  data.slice(1).forEach(row => {
+    const month = row[0];
+    const category = row[1];
+    const type = row[2];
+    const amount = row[3];
+    const salary = row[4];
+
+    if (!budgets[month]) {
+      budgets[month] = {
+        salary: salary,
+        categories: {}
+      };
+    }
+
+    budgets[month].categories[category] = {
+      amount: amount,
+      type: type
+    };
+  });
+
+  return budgets;
 }

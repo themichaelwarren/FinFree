@@ -1,15 +1,28 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Expense, AppConfig, AccountBalances, Theme } from './types';
+import { Expense, AppConfig, AccountBalances, Theme, SyncMode } from './types';
 import { storage } from './services/storage';
+import { authService } from './services/auth';
+import { sheetsApi } from './services/sheetsApi';
 import { ICONS } from './constants';
 import ExpenseForm from './components/ExpenseForm';
 import BudgetSummary from './components/BudgetSummary';
 import TransactionList from './components/TransactionList';
 import Settings from './components/Settings';
 import BudgetManager from './components/BudgetManager';
+import Onboarding from './components/Onboarding';
+import { AuthProvider, useAuth } from './contexts/AuthContext';
 
-const App: React.FC = () => {
+// Get current sync mode
+const getSyncMode = (config: AppConfig): SyncMode => {
+  const user = authService.getUser();
+  if (user && config.spreadsheetId) return 'oauth';
+  if (config.sheetsUrl && config.sheetsSecret) return 'appsscript';
+  return 'local';
+};
+
+const AppContent: React.FC = () => {
+  const { user } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [config, setConfig] = useState<AppConfig>(storage.getConfig());
   const [activeTab, setActiveTab] = useState<'track' | 'budget' | 'history'>('track');
@@ -27,18 +40,40 @@ const App: React.FC = () => {
       setConfig(localConfig);
       setExpenses(localExpenses);
 
-      // If online and has sheets URL + secret, fetch from cloud
-      if (navigator.onLine && localConfig.sheetsUrl && localConfig.sheetsSecret) {
-        setIsSyncing(true);
-        const cloudData = await storage.fetchFromCloud(localConfig.sheetsUrl, localConfig.sheetsSecret);
+      const syncMode = getSyncMode(localConfig);
 
-        if (cloudData) {
-          const merged = storage.mergeWithCloud(cloudData);
-          storage.saveConfig(merged.config);
-          storage.setExpenses(merged.expenses);
-          setConfig(merged.config);
-          setExpenses(merged.expenses);
+      if (navigator.onLine && syncMode !== 'local') {
+        setIsSyncing(true);
+
+        try {
+          if (syncMode === 'oauth' && user?.accessToken && localConfig.spreadsheetId) {
+            // OAuth mode: fetch directly from Sheets API
+            const data = await sheetsApi.fetchAll(user.accessToken, localConfig.spreadsheetId);
+            const cloudData = {
+              config: data.config as AppConfig | null,
+              expenses: data.expenses,
+              budgets: data.budgets
+            };
+            const merged = storage.mergeWithCloud(cloudData);
+            storage.saveConfig(merged.config);
+            storage.setExpenses(merged.expenses);
+            setConfig(merged.config);
+            setExpenses(merged.expenses);
+          } else if (syncMode === 'appsscript' && localConfig.sheetsUrl && localConfig.sheetsSecret) {
+            // Apps Script mode
+            const cloudData = await storage.fetchFromCloud(localConfig.sheetsUrl, localConfig.sheetsSecret);
+            if (cloudData) {
+              const merged = storage.mergeWithCloud(cloudData);
+              storage.saveConfig(merged.config);
+              storage.setExpenses(merged.expenses);
+              setConfig(merged.config);
+              setExpenses(merged.expenses);
+            }
+          }
+        } catch (error) {
+          console.error('Cloud sync failed:', error);
         }
+
         setIsSyncing(false);
       }
 
@@ -58,24 +93,41 @@ const App: React.FC = () => {
   }, []);
 
   const handleSync = useCallback(async () => {
-    if (!isOnline || !config.sheetsUrl || !config.sheetsSecret || isSyncing) return;
+    const syncMode = getSyncMode(config);
+    if (!isOnline || syncMode === 'local' || isSyncing) return;
 
     setIsSyncing(true);
     const currentExpenses = storage.getExpenses();
     const unsynced = currentExpenses.filter(e => !e.synced);
 
-    if (unsynced.length > 0) {
-      const syncedIds = await storage.syncToSheets(currentExpenses, config.sheetsUrl, config.sheetsSecret);
-      if (syncedIds.length > 0) {
-        let updated = currentExpenses;
-        syncedIds.forEach(id => {
-          updated = storage.updateExpense(id, { synced: true });
-        });
-        setExpenses(updated);
+    try {
+      if (unsynced.length > 0) {
+        if (syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
+          // OAuth mode: sync directly via Sheets API
+          await sheetsApi.addExpenses(user.accessToken, config.spreadsheetId, unsynced);
+          let updated = currentExpenses;
+          unsynced.forEach(e => {
+            updated = storage.updateExpense(e.id, { synced: true });
+          });
+          setExpenses(updated);
+        } else if (syncMode === 'appsscript') {
+          // Apps Script mode
+          const syncedIds = await storage.syncToSheets(currentExpenses, config.sheetsUrl, config.sheetsSecret);
+          if (syncedIds.length > 0) {
+            let updated = currentExpenses;
+            syncedIds.forEach(id => {
+              updated = storage.updateExpense(id, { synced: true });
+            });
+            setExpenses(updated);
+          }
+        }
       }
+    } catch (error) {
+      console.error('Sync failed:', error);
     }
+
     setIsSyncing(false);
-  }, [config.sheetsUrl, config.sheetsSecret, isOnline, isSyncing]);
+  }, [config, user, isOnline, isSyncing]);
 
   useEffect(() => {
     if (isOnline) {
@@ -106,36 +158,82 @@ const App: React.FC = () => {
     }
   };
 
-  const handleConfigUpdate = (newConfig: AppConfig) => {
+  const handleConfigUpdate = async (newConfig: AppConfig) => {
+    const oldConfig = config;
     storage.saveConfig(newConfig);
     setConfig(newConfig);
 
+    const syncMode = getSyncMode(newConfig);
+
     // Sync config to cloud
-    if (isOnline && newConfig.sheetsUrl && newConfig.sheetsSecret) {
-      storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+    if (isOnline && syncMode !== 'local') {
+      try {
+        if (syncMode === 'oauth' && user?.accessToken && newConfig.spreadsheetId) {
+          // OAuth mode: sync directly via Sheets API
+          await sheetsApi.saveConfig(user.accessToken, newConfig.spreadsheetId, {
+            theme: newConfig.theme,
+            balances: newConfig.balances
+          });
+
+          // If budgets changed, sync to dedicated Budgets sheet
+          if (JSON.stringify(newConfig.budgets) !== JSON.stringify(oldConfig.budgets)) {
+            await sheetsApi.saveBudgets(user.accessToken, newConfig.spreadsheetId, newConfig.budgets);
+          }
+        } else if (syncMode === 'appsscript') {
+          // Apps Script mode
+          storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+
+          // If budgets changed, sync to dedicated Budgets sheet
+          if (JSON.stringify(newConfig.budgets) !== JSON.stringify(oldConfig.budgets)) {
+            storage.syncBudgetsToCloud(newConfig.budgets, newConfig.sheetsUrl, newConfig.sheetsSecret);
+          }
+        }
+      } catch (error) {
+        console.error('Config sync failed:', error);
+      }
     }
   };
 
-  const handleBalanceUpdate = (balances: AccountBalances) => {
+  const handleBalanceUpdate = async (balances: AccountBalances) => {
     const newConfig = { ...config, balances };
     storage.saveConfig(newConfig);
     setConfig(newConfig);
 
+    const syncMode = getSyncMode(newConfig);
+
     // Sync config to cloud
-    if (isOnline && newConfig.sheetsUrl && newConfig.sheetsSecret) {
-      storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+    if (isOnline && syncMode !== 'local') {
+      try {
+        if (syncMode === 'oauth' && user?.accessToken && newConfig.spreadsheetId) {
+          await sheetsApi.saveConfig(user.accessToken, newConfig.spreadsheetId, { balances });
+        } else if (syncMode === 'appsscript') {
+          storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+        }
+      } catch (error) {
+        console.error('Balance sync failed:', error);
+      }
     }
   };
 
-  const toggleTheme = () => {
+  const toggleTheme = async () => {
     const newTheme: Theme = config.theme === 'dark' ? 'light' : 'dark';
     const newConfig = { ...config, theme: newTheme };
     storage.saveConfig(newConfig);
     setConfig(newConfig);
 
+    const syncMode = getSyncMode(newConfig);
+
     // Sync theme preference to cloud
-    if (isOnline && newConfig.sheetsUrl && newConfig.sheetsSecret) {
-      storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+    if (isOnline && syncMode !== 'local') {
+      try {
+        if (syncMode === 'oauth' && user?.accessToken && newConfig.spreadsheetId) {
+          await sheetsApi.saveConfig(user.accessToken, newConfig.spreadsheetId, { theme: newTheme });
+        } else if (syncMode === 'appsscript') {
+          storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+        }
+      } catch (error) {
+        console.error('Theme sync failed:', error);
+      }
     }
   };
 
@@ -278,6 +376,15 @@ const App: React.FC = () => {
       )}
     </div>
     </div>
+  );
+};
+
+// Main App wrapper with AuthProvider
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

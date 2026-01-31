@@ -99,8 +99,9 @@ const createEmptyBudget = (): MonthlyBudget => ({
 
 export const DEFAULT_CONFIG: AppConfig = {
   geminiKey: '',  // User enters via Settings UI
-  sheetsUrl: '',  // User enters via Settings UI
-  sheetsSecret: '',
+  sheetsUrl: '',  // User enters via Settings UI (Apps Script mode)
+  sheetsSecret: '',  // Apps Script mode
+  spreadsheetId: null,  // OAuth mode
   budgets: {
     [new Date().toISOString().slice(0, 7)]: {
       salary: 320000,

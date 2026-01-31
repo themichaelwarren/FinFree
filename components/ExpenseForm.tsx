@@ -76,14 +76,28 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
       const reader = new FileReader();
       reader.onload = async () => {
         const base64 = (reader.result as string).split(',')[1];
-        const result: ReceiptExtraction = await extractReceiptData(apiKey, base64, file.type);
-        
+        const result: ReceiptExtraction = await extractReceiptData(apiKey, base64, file.type, categories);
+
         setAmount(result.total.toString());
         setStore(result.store);
         if (result.date && result.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
             setDate(result.date);
         }
         setNotes(result.items.map(i => `${i.name}: ¥${i.price}`).join('\n'));
+
+        // Apply AI-suggested category if valid
+        if (result.suggestedCategory) {
+          const suggestedCat = categories.find(c => c.id === result.suggestedCategory);
+          if (suggestedCat) {
+            setType(suggestedCat.defaultType);
+            setCategory(suggestedCat.id);
+          }
+        }
+        // Override with AI-suggested type if provided
+        if (result.suggestedType && ['NEED', 'WANT', 'SAVE', 'DEBT'].includes(result.suggestedType)) {
+          setType(result.suggestedType);
+        }
+
         setIsScanning(false);
       };
       reader.readAsDataURL(file);

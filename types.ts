@@ -86,4 +86,6 @@ export interface ReceiptExtraction {
   total: number;
   items: ReceiptItem[];
   confidence: 'high' | 'medium' | 'low';
+  suggestedCategory?: string;  // AI-suggested category ID
+  suggestedType?: ExpenseType; // AI-suggested expense type
 }

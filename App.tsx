@@ -244,11 +244,11 @@ const AppContent: React.FC = () => {
     switch (activeTab) {
       case 'track':
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 lg:grid lg:grid-cols-2 lg:gap-8">
-            <div>
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col lg:grid lg:grid-cols-2 lg:gap-8">
+            <div className="order-2 lg:order-1">
               <BudgetSummary expenses={expenses} config={config} onUpdateBalances={handleBalanceUpdate} isDark={isDark} />
             </div>
-            <div>
+            <div className="order-1 lg:order-2">
               <ExpenseForm onSave={handleSaveExpense} apiKey={config.geminiKey} isDark={isDark} />
               <div className="hidden lg:block mt-6">
                 <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] px-1 mb-4 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Recent</h3>

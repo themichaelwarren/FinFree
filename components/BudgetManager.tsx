@@ -22,7 +22,8 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave }) => {
   const adjustMonth = (delta: number) => {
     const [year, month] = selectedMonth.split('-').map(Number);
     const date = new Date(year, month - 1 + delta, 1);
-    setSelectedMonth(date.toISOString().slice(0, 7));
+    const newMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    setSelectedMonth(newMonth);
   };
 
   const handleSalaryChange = (val: string) => {
@@ -68,20 +69,20 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave }) => {
           >
             <ICONS.ChevronLeft className="w-5 h-5" />
           </button>
-          <div className="relative group">
-            <input 
-              type="month" 
+          <label className="relative cursor-pointer">
+            <input
+              type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
             />
-            <div className="px-4 py-2 bg-zinc-800/50 rounded-xl border border-zinc-700/50 flex items-center gap-3">
+            <div className="px-4 py-2 bg-zinc-800/50 rounded-xl border border-zinc-700/50 flex items-center gap-3 hover:bg-zinc-800 transition-colors">
               <ICONS.Calendar className="w-4 h-4 text-zinc-500" />
               <span className="text-sm font-bold tracking-tight text-zinc-200">
                 {monthName}
               </span>
             </div>
-          </div>
+          </label>
           <button 
             onClick={() => adjustMonth(1)}
             className="p-3 hover:bg-zinc-800 rounded-xl transition-colors text-zinc-400 hover:text-white"

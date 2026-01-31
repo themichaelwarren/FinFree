@@ -16,7 +16,8 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
   const adjustMonth = (delta: number) => {
     const [year, month] = viewMonth.split('-').map(Number);
     const date = new Date(year, month - 1 + delta, 1);
-    setViewMonth(date.toISOString().slice(0, 7));
+    const newMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    setViewMonth(newMonth);
   };
 
   const monthlyExpenses = expenses.filter(e => {
@@ -49,17 +50,17 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config }) => {
             <button onClick={() => adjustMonth(-1)} className="p-1 hover:bg-zinc-800 rounded text-zinc-600 hover:text-zinc-400 transition-colors">
               <ICONS.ChevronLeft className="w-3.5 h-3.5" />
             </button>
-            <div className="relative overflow-hidden inline-block group">
-              <input 
-                type="month" 
+            <label className="relative cursor-pointer inline-block">
+              <input
+                type="month"
                 value={viewMonth}
                 onChange={(e) => setViewMonth(e.target.value)}
-                className="absolute inset-0 opacity-0 cursor-pointer"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
               <span className="text-[10px] font-black text-zinc-500 uppercase tracking-[0.2em] hover:text-zinc-300 transition-colors">
                 {monthName}
               </span>
-            </div>
+            </label>
             <button onClick={() => adjustMonth(1)} className="p-1 hover:bg-zinc-800 rounded text-zinc-600 hover:text-zinc-400 transition-colors">
               <ICONS.ChevronRight className="w-3.5 h-3.5" />
             </button>

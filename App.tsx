@@ -31,56 +31,13 @@ const AppContent: React.FC = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initial load: fetch from cloud and merge with local
+  // Initial load: load local data and set up event listeners
   useEffect(() => {
-    const initializeData = async () => {
-      const localConfig = storage.getConfig();
-      const localExpenses = storage.getExpenses();
-
-      setConfig(localConfig);
-      setExpenses(localExpenses);
-
-      const syncMode = getSyncMode(localConfig);
-
-      if (navigator.onLine && syncMode !== 'local') {
-        setIsSyncing(true);
-
-        try {
-          if (syncMode === 'oauth' && user?.accessToken && localConfig.spreadsheetId) {
-            // OAuth mode: fetch directly from Sheets API
-            const data = await sheetsApi.fetchAll(user.accessToken, localConfig.spreadsheetId);
-            const cloudData = {
-              config: data.config as AppConfig | null,
-              expenses: data.expenses,
-              budgets: data.budgets
-            };
-            const merged = storage.mergeWithCloud(cloudData);
-            storage.saveConfig(merged.config);
-            storage.setExpenses(merged.expenses);
-            setConfig(merged.config);
-            setExpenses(merged.expenses);
-          } else if (syncMode === 'appsscript' && localConfig.sheetsUrl && localConfig.sheetsSecret) {
-            // Apps Script mode
-            const cloudData = await storage.fetchFromCloud(localConfig.sheetsUrl, localConfig.sheetsSecret);
-            if (cloudData) {
-              const merged = storage.mergeWithCloud(cloudData);
-              storage.saveConfig(merged.config);
-              storage.setExpenses(merged.expenses);
-              setConfig(merged.config);
-              setExpenses(merged.expenses);
-            }
-          }
-        } catch (error) {
-          console.error('Cloud sync failed:', error);
-        }
-
-        setIsSyncing(false);
-      }
-
-      setIsLoading(false);
-    };
-
-    initializeData();
+    const localConfig = storage.getConfig();
+    const localExpenses = storage.getExpenses();
+    setConfig(localConfig);
+    setExpenses(localExpenses);
+    setIsLoading(false);
 
     const handleStatusChange = () => setIsOnline(navigator.onLine);
     window.addEventListener('online', handleStatusChange);
@@ -91,6 +48,51 @@ const AppContent: React.FC = () => {
       window.removeEventListener('offline', handleStatusChange);
     };
   }, []);
+
+  // Fetch from cloud when user becomes available or on reload
+  useEffect(() => {
+    const fetchFromCloud = async () => {
+      const localConfig = storage.getConfig();
+      const syncMode = getSyncMode(localConfig);
+
+      if (!navigator.onLine || syncMode === 'local' || isSyncing) return;
+
+      setIsSyncing(true);
+
+      try {
+        if (syncMode === 'oauth' && user?.accessToken && localConfig.spreadsheetId) {
+          // OAuth mode: fetch directly from Sheets API
+          const data = await sheetsApi.fetchAll(user.accessToken, localConfig.spreadsheetId);
+          const cloudData = {
+            config: data.config as AppConfig | null,
+            expenses: data.expenses,
+            budgets: data.budgets
+          };
+          const merged = storage.mergeWithCloud(cloudData);
+          storage.saveConfig(merged.config);
+          storage.setExpenses(merged.expenses);
+          setConfig(merged.config);
+          setExpenses(merged.expenses);
+        } else if (syncMode === 'appsscript' && localConfig.sheetsUrl && localConfig.sheetsSecret) {
+          // Apps Script mode
+          const cloudData = await storage.fetchFromCloud(localConfig.sheetsUrl, localConfig.sheetsSecret);
+          if (cloudData) {
+            const merged = storage.mergeWithCloud(cloudData);
+            storage.saveConfig(merged.config);
+            storage.setExpenses(merged.expenses);
+            setConfig(merged.config);
+            setExpenses(merged.expenses);
+          }
+        }
+      } catch (error) {
+        console.error('Cloud sync failed:', error);
+      }
+
+      setIsSyncing(false);
+    };
+
+    fetchFromCloud();
+  }, [user?.accessToken]);
 
   const handleSync = useCallback(async () => {
     const syncMode = getSyncMode(config);

@@ -29,9 +29,10 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
     [categories, type]
   );
 
-  // Auto-select first category when type changes or on mount
+  // Auto-select first category when type changes (but not when form is reset)
   useEffect(() => {
-    if (filteredCategories.length > 0) {
+    if (filteredCategories.length > 0 && category) {
+      // Only auto-select if category is set but not in filtered list (type changed)
       const currentCatInFiltered = filteredCategories.find(c => c.id === category);
       if (!currentCatInFiltered) {
         setCategory(filteredCategories[0].id);
@@ -41,7 +42,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || isNaN(Number(amount))) return;
+    if (!amount || isNaN(Number(amount)) || !category || !paymentMethod || !date) return;
 
     onSave({
       amount: Number(amount),
@@ -54,12 +55,13 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
       source: 'manual'
     });
 
-    // Reset
+    // Reset form to clear state
     setAmount('');
     setStore('');
     setNotes('');
-    setDate(new Date().toISOString().split('T')[0]);
-    setPaymentMethod('Cash');
+    setDate('');
+    setCategory('');
+    setPaymentMethod('' as PaymentMethod);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -162,8 +164,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
-              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
+              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 focus:ring-white/10' : 'bg-gray-100 focus:ring-gray-300'} ${category ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-zinc-500' : 'text-gray-400')}`}
             >
+              <option value="" disabled>Select...</option>
               {filteredCategories.map(cat => (
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
@@ -174,8 +177,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
             <select
               value={paymentMethod}
               onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
+              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 focus:ring-white/10' : 'bg-gray-100 focus:ring-gray-300'} ${paymentMethod ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-zinc-500' : 'text-gray-400')}`}
             >
+              <option value="" disabled>Select...</option>
               {PAYMENT_METHODS.map(method => (
                 <option key={method} value={method}>{method}</option>
               ))}

@@ -46,6 +46,19 @@ const Settings: React.FC<SettingsProps> = ({ config, onSave, onClose, isDark = t
                   className={`w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/20 placeholder:text-zinc-600' : 'bg-gray-100 text-gray-900 focus:ring-gray-300 placeholder:text-gray-400'}`}
                 />
               </div>
+              <div>
+                <label className={`block text-[10px] font-medium uppercase tracking-wider mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Sheets API Secret</label>
+                <input
+                  type="password"
+                  value={form.sheetsSecret}
+                  onChange={(e) => setForm({...form, sheetsSecret: e.target.value})}
+                  placeholder="Your secret token"
+                  className={`w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/20 placeholder:text-zinc-600' : 'bg-gray-100 text-gray-900 focus:ring-gray-300 placeholder:text-gray-400'}`}
+                />
+                <p className={`text-[9px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                  Must match the API_SECRET in your Apps Script
+                </p>
+              </div>
             </div>
           </section>
 

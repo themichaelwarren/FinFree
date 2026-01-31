@@ -1,0 +1,205 @@
+/**
+ * FinFree Google Apps Script
+ * Deploy as Web App with "Anyone" access
+ *
+ * This script handles:
+ * - Expense syncing to "Expenses" sheet
+ * - Config/Budget syncing to "Config" sheet
+ *
+ * Security: All requests must include the correct API_SECRET
+ */
+
+// IMPORTANT: Change this to a random string only you know!
+// Example: generate one at https://randomkeygen.com/
+const API_SECRET = 'xK9mP2qL7nR4wY6j';
+
+// Sheet names
+const EXPENSES_SHEET = 'Expenses';
+const CONFIG_SHEET = 'Config';
+
+function verifySecret(secret) {
+  return secret === API_SECRET;
+}
+
+function unauthorizedResponse() {
+  return ContentService.createTextOutput(JSON.stringify({
+    success: false,
+    error: 'Unauthorized'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  try {
+    const data = JSON.parse(e.postData.contents);
+
+    // Verify secret
+    if (!verifySecret(data.secret)) {
+      return unauthorizedResponse();
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+    // Handle config sync
+    if (data.type === 'config') {
+      return saveConfig(ss, data.config);
+    }
+
+    // Handle expense sync (default behavior)
+    return saveExpenses(ss, data.expenses || data);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doGet(e) {
+  try {
+    // Verify secret from query parameter
+    if (!verifySecret(e.parameter.secret)) {
+      return unauthorizedResponse();
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const type = e.parameter.type || 'all';
+
+    const result = {};
+
+    if (type === 'config' || type === 'all') {
+      result.config = getConfig(ss);
+    }
+
+    if (type === 'expenses' || type === 'all') {
+      result.expenses = getExpenses(ss);
+    }
+
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      data: result
+    })).setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: false,
+      error: error.message
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function saveConfig(ss, config) {
+  let sheet = ss.getSheetByName(CONFIG_SHEET);
+
+  // Create Config sheet if it doesn't exist
+  if (!sheet) {
+    sheet = ss.insertSheet(CONFIG_SHEET);
+    sheet.getRange('A1').setValue('Config JSON');
+    sheet.getRange('A2').setValue('Last Updated');
+  }
+
+  // Store config as JSON in cell B1
+  sheet.getRange('B1').setValue(JSON.stringify(config));
+  sheet.getRange('B2').setValue(new Date().toISOString());
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    message: 'Config saved'
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getConfig(ss) {
+  const sheet = ss.getSheetByName(CONFIG_SHEET);
+
+  if (!sheet) {
+    return null;
+  }
+
+  const configJson = sheet.getRange('B1').getValue();
+  if (!configJson) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(configJson);
+  } catch {
+    return null;
+  }
+}
+
+function saveExpenses(ss, expenses) {
+  let sheet = ss.getSheetByName(EXPENSES_SHEET);
+
+  // Create Expenses sheet with headers if it doesn't exist
+  if (!sheet) {
+    sheet = ss.insertSheet(EXPENSES_SHEET);
+    sheet.getRange('A1:K1').setValues([[
+      'ID', 'Date', 'Timestamp', 'Amount', 'Category', 'Type',
+      'Payment Method', 'Store', 'Notes', 'Source', 'Synced'
+    ]]);
+    sheet.getRange('A1:K1').setFontWeight('bold');
+  }
+
+  // Get existing IDs to avoid duplicates
+  const existingData = sheet.getDataRange().getValues();
+  const existingIds = new Set(existingData.slice(1).map(row => row[0]));
+
+  // Filter new expenses
+  const newExpenses = (Array.isArray(expenses) ? expenses : [expenses])
+    .filter(exp => !existingIds.has(exp.id));
+
+  if (newExpenses.length === 0) {
+    return ContentService.createTextOutput(JSON.stringify({
+      success: true,
+      added: 0
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Append new expenses
+  const rows = newExpenses.map(exp => [
+    exp.id,
+    exp.date,
+    exp.timestamp,
+    exp.amount,
+    exp.category,
+    exp.type,
+    exp.paymentMethod || 'Cash',
+    exp.store,
+    exp.notes || '',
+    exp.source || 'manual',
+    'true'
+  ]);
+
+  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 11).setValues(rows);
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    added: rows.length
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getExpenses(ss) {
+  const sheet = ss.getSheetByName(EXPENSES_SHEET);
+
+  if (!sheet) {
+    return [];
+  }
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return [];
+  }
+
+  // Skip header row, map to expense objects
+  return data.slice(1).map(row => ({
+    id: row[0],
+    date: row[1],
+    timestamp: row[2],
+    amount: row[3],
+    category: row[4],
+    type: row[5],
+    paymentMethod: row[6] || 'Cash',
+    store: row[7],
+    notes: row[8] || '',
+    source: row[9] || 'manual',
+    synced: true
+  }));
+}

@@ -52,6 +52,7 @@ export interface AccountBalances {
 export interface AppConfig {
   geminiKey: string;
   sheetsUrl: string;
+  sheetsSecret: string; // Secret token for API authentication
   budgets: Record<string, MonthlyBudget>; // Keyed by YYYY-MM
   balances: AccountBalances;
   theme: Theme;

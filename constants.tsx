@@ -100,6 +100,7 @@ const createEmptyBudget = (): MonthlyBudget => ({
 export const DEFAULT_CONFIG: AppConfig = {
   geminiKey: process.env.GEMINI_API_KEY || '',
   sheetsUrl: process.env.SHEETS_URL || '',
+  sheetsSecret: '',
   budgets: {
     [new Date().toISOString().slice(0, 7)]: {
       salary: 320000,

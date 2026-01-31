@@ -16,10 +16,37 @@ const App: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isLoading, setIsLoading] = useState(true);
 
+  // Initial load: fetch from cloud and merge with local
   useEffect(() => {
-    setExpenses(storage.getExpenses());
-    
+    const initializeData = async () => {
+      const localConfig = storage.getConfig();
+      const localExpenses = storage.getExpenses();
+
+      setConfig(localConfig);
+      setExpenses(localExpenses);
+
+      // If online and has sheets URL + secret, fetch from cloud
+      if (navigator.onLine && localConfig.sheetsUrl && localConfig.sheetsSecret) {
+        setIsSyncing(true);
+        const cloudData = await storage.fetchFromCloud(localConfig.sheetsUrl, localConfig.sheetsSecret);
+
+        if (cloudData) {
+          const merged = storage.mergeWithCloud(cloudData);
+          storage.saveConfig(merged.config);
+          storage.setExpenses(merged.expenses);
+          setConfig(merged.config);
+          setExpenses(merged.expenses);
+        }
+        setIsSyncing(false);
+      }
+
+      setIsLoading(false);
+    };
+
+    initializeData();
+
     const handleStatusChange = () => setIsOnline(navigator.onLine);
     window.addEventListener('online', handleStatusChange);
     window.addEventListener('offline', handleStatusChange);
@@ -31,14 +58,14 @@ const App: React.FC = () => {
   }, []);
 
   const handleSync = useCallback(async () => {
-    if (!isOnline || !config.sheetsUrl || isSyncing) return;
-    
+    if (!isOnline || !config.sheetsUrl || !config.sheetsSecret || isSyncing) return;
+
     setIsSyncing(true);
     const currentExpenses = storage.getExpenses();
     const unsynced = currentExpenses.filter(e => !e.synced);
-    
+
     if (unsynced.length > 0) {
-      const syncedIds = await storage.syncToSheets(currentExpenses, config.sheetsUrl);
+      const syncedIds = await storage.syncToSheets(currentExpenses, config.sheetsUrl, config.sheetsSecret);
       if (syncedIds.length > 0) {
         let updated = currentExpenses;
         syncedIds.forEach(id => {
@@ -48,7 +75,7 @@ const App: React.FC = () => {
       }
     }
     setIsSyncing(false);
-  }, [config.sheetsUrl, isOnline, isSyncing]);
+  }, [config.sheetsUrl, config.sheetsSecret, isOnline, isSyncing]);
 
   useEffect(() => {
     if (isOnline) {
@@ -82,12 +109,22 @@ const App: React.FC = () => {
   const handleConfigUpdate = (newConfig: AppConfig) => {
     storage.saveConfig(newConfig);
     setConfig(newConfig);
+
+    // Sync config to cloud
+    if (isOnline && newConfig.sheetsUrl && newConfig.sheetsSecret) {
+      storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+    }
   };
 
   const handleBalanceUpdate = (balances: AccountBalances) => {
     const newConfig = { ...config, balances };
     storage.saveConfig(newConfig);
     setConfig(newConfig);
+
+    // Sync config to cloud
+    if (isOnline && newConfig.sheetsUrl && newConfig.sheetsSecret) {
+      storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+    }
   };
 
   const toggleTheme = () => {
@@ -95,6 +132,11 @@ const App: React.FC = () => {
     const newConfig = { ...config, theme: newTheme };
     storage.saveConfig(newConfig);
     setConfig(newConfig);
+
+    // Sync theme preference to cloud
+    if (isOnline && newConfig.sheetsUrl && newConfig.sheetsSecret) {
+      storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
+    }
   };
 
   const isDark = config.theme === 'dark';
@@ -128,6 +170,17 @@ const App: React.FC = () => {
         );
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-black' : 'bg-gray-50'}`}>
+        <div className="text-center">
+          <div className={`w-8 h-8 border-2 rounded-full animate-spin mx-auto mb-4 ${isDark ? 'border-zinc-700 border-t-white' : 'border-gray-200 border-t-gray-600'}`} />
+          <p className={`text-sm font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-black' : 'bg-gray-50'}`}>

@@ -40,6 +40,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
     }
   }, [filteredCategories, category]);
 
+  // Check if form is valid for submission
+  const isFormValid = amount && !isNaN(Number(amount)) && Number(amount) > 0 && category && paymentMethod && date;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount || isNaN(Number(amount)) || !category || !paymentMethod || !date) return;
@@ -213,7 +216,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
 
         <button
           type="submit"
-          className={`w-full font-bold py-4 rounded-xl active:scale-[0.98] transition-all shadow-lg ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
+          disabled={!isFormValid}
+          className={`w-full font-bold py-4 rounded-xl transition-all shadow-lg ${
+            isFormValid
+              ? isDark ? 'bg-white text-black hover:bg-zinc-200 active:scale-[0.98]' : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.98]'
+              : isDark ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          }`}
         >
           Save Entry
         </button>

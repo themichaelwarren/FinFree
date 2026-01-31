@@ -289,8 +289,31 @@ const AppContent: React.FC = () => {
         <div>
           <h1 className={`text-2xl font-bold tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>FinFree</h1>
           <div className="flex items-center gap-2 mt-1">
-            <div className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]' : 'bg-rose-500'}`} />
-            <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>{isOnline ? 'Cloud Active' : 'Offline Mode'}</span>
+            {(() => {
+              const syncMode = getSyncMode(config);
+              if (!isOnline) {
+                return (
+                  <>
+                    <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Offline Mode</span>
+                  </>
+                );
+              }
+              if (syncMode === 'local') {
+                return (
+                  <>
+                    <div className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-gray-400'}`} />
+                    <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Local Only</span>
+                  </>
+                );
+              }
+              return (
+                <>
+                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Cloud Active</span>
+                </>
+              );
+            })()}
             {isSyncing && <span className={`text-[10px] animate-pulse ml-2 font-medium ${isDark ? 'text-zinc-400' : 'text-gray-400'}`}>Syncing...</span>}
           </div>
         </div>

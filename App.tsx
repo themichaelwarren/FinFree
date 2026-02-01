@@ -339,8 +339,13 @@ const AppContent: React.FC = () => {
   };
 
   // Bank Account handlers
-  const handleAddAccount = (account: BankAccount) => {
-    const updated = storage.saveAccount(account);
+  const handleAddAccount = (accountData: Omit<BankAccount, 'id' | 'createdAt'>) => {
+    const newAccount: BankAccount = {
+      ...accountData,
+      id: `bank_${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+    const updated = storage.saveAccount(newAccount);
     setAccounts(updated);
     syncAccountsToCloud(updated);
   };

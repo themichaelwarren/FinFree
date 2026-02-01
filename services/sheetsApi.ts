@@ -21,12 +21,12 @@ export const sheetsApi = {
         properties: { title: name },
         sheets: [
           {
-            properties: { title: 'Expenses', index: 0 },
+            properties: { title: 'Transactions', index: 0 },
             data: [{
               startRow: 0,
               startColumn: 0,
               rowData: [{
-                values: ['ID', 'Date', 'Timestamp', 'Amount', 'Category', 'Type', 'Payment Method', 'Store', 'Notes', 'Source'].map(v => ({
+                values: ['ID', 'Date', 'Timestamp', 'TransactionType', 'Amount', 'Category', 'ExpenseType', 'PaymentMethod', 'Description', 'Notes', 'Source'].map(v => ({
                   userEnteredValue: { stringValue: v },
                   userEnteredFormat: { textFormat: { bold: true } }
                 }))
@@ -72,20 +72,7 @@ export const sheetsApi = {
             }]
           },
           {
-            properties: { title: 'Income', index: 4 },
-            data: [{
-              startRow: 0,
-              startColumn: 0,
-              rowData: [{
-                values: ['ID', 'Date', 'Timestamp', 'Amount', 'Category', 'Payment Method', 'Description', 'Notes'].map(v => ({
-                  userEnteredValue: { stringValue: v },
-                  userEnteredFormat: { textFormat: { bold: true } }
-                }))
-              }]
-            }]
-          },
-          {
-            properties: { title: 'Transfers', index: 5 },
+            properties: { title: 'Transfers', index: 4 },
             data: [{
               startRow: 0,
               startColumn: 0,
@@ -98,7 +85,7 @@ export const sheetsApi = {
             }]
           },
           {
-            properties: { title: 'Accounts', index: 6 },
+            properties: { title: 'Accounts', index: 5 },
             data: [{
               startRow: 0,
               startColumn: 0,
@@ -220,192 +207,192 @@ export const sheetsApi = {
     }
   },
 
-  // Get all expenses
+  // Get all expenses (reads from Transactions sheet, falls back to legacy Expenses sheet)
   getExpenses: async (accessToken: string, spreadsheetId: string): Promise<Expense[]> => {
-    const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Expenses!A2:J');
+    const expenses: Expense[] = [];
 
-    return values.map(row => ({
-      id: String(row[0]),
-      date: String(row[1]),
-      timestamp: String(row[2]),
-      amount: Number(row[3]),
-      category: String(row[4]) as Expense['category'],
-      type: String(row[5]) as Expense['type'],
-      paymentMethod: (String(row[6]) || 'Cash') as Expense['paymentMethod'],
-      store: String(row[7]),
-      notes: String(row[8] || ''),
-      source: (String(row[9]) || 'manual') as Expense['source'],
-      synced: true
-    }));
+    // Try reading from new Transactions sheet
+    try {
+      const transactionValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:K');
+      transactionValues
+        .filter(row => String(row[3]) === 'expense')
+        .forEach(row => {
+          expenses.push({
+            id: String(row[0]),
+            date: String(row[1]),
+            timestamp: String(row[2]),
+            // row[3] is TransactionType
+            amount: Number(row[4]),
+            category: String(row[5]) as Expense['category'],
+            type: String(row[6] || 'NEED') as Expense['type'],
+            paymentMethod: (String(row[7]) || 'Cash') as Expense['paymentMethod'],
+            store: String(row[8] || ''),
+            notes: String(row[9] || ''),
+            source: (String(row[10]) || 'manual') as Expense['source'],
+            synced: true
+          });
+        });
+    } catch {
+      // Transactions sheet might not exist
+    }
+
+    // Also read from legacy Expenses sheet (for backwards compatibility)
+    try {
+      const legacyValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Expenses!A2:J');
+      const existingIds = new Set(expenses.map(e => e.id));
+
+      legacyValues.forEach(row => {
+        const id = String(row[0]);
+        if (!existingIds.has(id)) {
+          expenses.push({
+            id,
+            date: String(row[1]),
+            timestamp: String(row[2]),
+            amount: Number(row[3]),
+            category: String(row[4]) as Expense['category'],
+            type: String(row[5]) as Expense['type'],
+            paymentMethod: (String(row[6]) || 'Cash') as Expense['paymentMethod'],
+            store: String(row[7] || ''),
+            notes: String(row[8] || ''),
+            source: (String(row[9]) || 'manual') as Expense['source'],
+            synced: true
+          });
+        }
+      });
+    } catch {
+      // Legacy sheet might not exist
+    }
+
+    return expenses;
   },
 
-  // Add or update expenses
+  // Add or update expenses (writes to Transactions sheet)
   addExpenses: async (accessToken: string, spreadsheetId: string, expenses: Expense[]): Promise<void> => {
     if (expenses.length === 0) return;
+
+    // Ensure Transactions sheet exists
+    await sheetsApi.ensureTransactionsSheet(accessToken, spreadsheetId);
 
     // Get existing expenses to determine which need adding vs updating
     const existing = await sheetsApi.getExpenses(accessToken, spreadsheetId);
     const existingIds = new Set(existing.map(e => e.id));
 
     const newExpenses = expenses.filter(e => !existingIds.has(e.id));
-    const updatedExpenses = expenses.filter(e => existingIds.has(e.id));
 
-    // Append new expenses
+    // Append new expenses to Transactions sheet
     if (newExpenses.length > 0) {
       const rows = newExpenses.map(e => [
         e.id,
         e.date,
         e.timestamp,
+        'expense',  // TransactionType
         e.amount,
         e.category,
-        e.type,
+        e.type || 'NEED',  // ExpenseType
         e.paymentMethod || 'Cash',
-        e.store,
+        e.store || '',  // Description
         e.notes || '',
         e.source || 'manual'
       ]);
-      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Expenses!A:J', rows);
-    }
-
-    // Update existing expenses
-    if (updatedExpenses.length > 0) {
-      await sheetsApi.updateExpenses(accessToken, spreadsheetId, updatedExpenses);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transactions!A:K', rows);
     }
   },
 
-  // Update existing expenses by finding their rows and updating in place
-  updateExpenses: async (accessToken: string, spreadsheetId: string, expenses: Expense[]): Promise<void> => {
-    if (expenses.length === 0) return;
 
-    // Get all current data to find row numbers
-    const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Expenses!A:J');
-
-    // Build a map of ID -> row index (1-based, accounting for header)
-    const idToRow = new Map<string, number>();
-    values.forEach((row, index) => {
-      if (index === 0) return; // Skip header
-      const id = String(row[0]);
-      idToRow.set(id, index + 1); // +1 because Sheets rows are 1-indexed
-    });
-
-    // Update each expense in its row
-    for (const expense of expenses) {
-      const rowNum = idToRow.get(expense.id);
-      if (rowNum) {
-        const row = [
-          expense.id,
-          expense.date,
-          expense.timestamp,
-          expense.amount,
-          expense.category,
-          expense.type,
-          expense.paymentMethod || 'Cash',
-          expense.store,
-          expense.notes || '',
-          expense.source || 'manual'
-        ];
-        await sheetsApi.updateValues(accessToken, spreadsheetId, `Expenses!A${rowNum}:J${rowNum}`, [row]);
-      }
-    }
-  },
-
-  // Get all income
+  // Get all income (reads from Transactions sheet, falls back to legacy Income sheet)
   getIncome: async (accessToken: string, spreadsheetId: string): Promise<Income[]> => {
-    try {
-      const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Income!A2:H');
+    const incomeList: Income[] = [];
 
-      return values.map(row => ({
-        id: String(row[0]),
-        date: String(row[1]),
-        timestamp: String(row[2]),
-        amount: Number(row[3]),
-        category: String(row[4]) as Income['category'],
-        paymentMethod: (String(row[5]) || 'Bank') as Income['paymentMethod'],
-        description: String(row[6] || ''),
-        notes: String(row[7] || ''),
-        synced: true
-      }));
+    // Try reading from new Transactions sheet
+    try {
+      const transactionValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:K');
+      transactionValues
+        .filter(row => String(row[3]) === 'income')
+        .forEach(row => {
+          incomeList.push({
+            id: String(row[0]),
+            date: String(row[1]),
+            timestamp: String(row[2]),
+            // row[3] is TransactionType
+            amount: Number(row[4]),
+            category: String(row[5]) as Income['category'],
+            // row[6] is ExpenseType (not used for income)
+            paymentMethod: (String(row[7]) || 'Bank') as Income['paymentMethod'],
+            description: String(row[8] || ''),
+            notes: String(row[9] || ''),
+            synced: true
+          });
+        });
     } catch {
-      // Income sheet might not exist in older spreadsheets
-      return [];
+      // Transactions sheet might not exist
     }
+
+    // Also read from legacy Income sheet (for backwards compatibility)
+    try {
+      const legacyValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Income!A2:H');
+      const existingIds = new Set(incomeList.map(i => i.id));
+
+      legacyValues.forEach(row => {
+        const id = String(row[0]);
+        if (!existingIds.has(id)) {
+          incomeList.push({
+            id,
+            date: String(row[1]),
+            timestamp: String(row[2]),
+            amount: Number(row[3]),
+            category: String(row[4]) as Income['category'],
+            paymentMethod: (String(row[5]) || 'Bank') as Income['paymentMethod'],
+            description: String(row[6] || ''),
+            notes: String(row[7] || ''),
+            synced: true
+          });
+        }
+      });
+    } catch {
+      // Legacy sheet might not exist
+    }
+
+    return incomeList;
   },
 
-  // Add or update income
+  // Add or update income (writes to Transactions sheet)
   addIncome: async (accessToken: string, spreadsheetId: string, income: Income[]): Promise<void> => {
     if (income.length === 0) return;
 
-    // Ensure Income sheet exists (for older spreadsheets)
-    await sheetsApi.ensureIncomeSheet(accessToken, spreadsheetId);
+    // Ensure Transactions sheet exists
+    await sheetsApi.ensureTransactionsSheet(accessToken, spreadsheetId);
 
     // Get existing income to determine which need adding vs updating
     const existing = await sheetsApi.getIncome(accessToken, spreadsheetId);
     const existingIds = new Set(existing.map(i => i.id));
 
     const newIncome = income.filter(i => !existingIds.has(i.id));
-    const updatedIncome = income.filter(i => existingIds.has(i.id));
 
-    // Append new income
+    // Append new income to Transactions sheet
     if (newIncome.length > 0) {
       const rows = newIncome.map(i => [
         i.id,
         i.date,
         i.timestamp,
+        'income',  // TransactionType
         i.amount,
         i.category,
+        '',  // ExpenseType (not used for income)
         i.paymentMethod || 'Bank',
         i.description || '',
-        i.notes || ''
+        i.notes || '',
+        ''  // Source (not used for income)
       ]);
-      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Income!A:H', rows);
-    }
-
-    // Update existing income
-    if (updatedIncome.length > 0) {
-      await sheetsApi.updateIncome(accessToken, spreadsheetId, updatedIncome);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transactions!A:K', rows);
     }
   },
 
-  // Update existing income by finding their rows and updating in place
-  updateIncome: async (accessToken: string, spreadsheetId: string, income: Income[]): Promise<void> => {
-    if (income.length === 0) return;
-
-    // Get all current data to find row numbers
-    const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Income!A:H');
-
-    // Build a map of ID -> row index (1-based, accounting for header)
-    const idToRow = new Map<string, number>();
-    values.forEach((row, index) => {
-      if (index === 0) return; // Skip header
-      const id = String(row[0]);
-      idToRow.set(id, index + 1); // +1 because Sheets rows are 1-indexed
-    });
-
-    // Update each income in its row
-    for (const inc of income) {
-      const rowNum = idToRow.get(inc.id);
-      if (rowNum) {
-        const row = [
-          inc.id,
-          inc.date,
-          inc.timestamp,
-          inc.amount,
-          inc.category,
-          inc.paymentMethod || 'Bank',
-          inc.description || '',
-          inc.notes || ''
-        ];
-        await sheetsApi.updateValues(accessToken, spreadsheetId, `Income!A${rowNum}:H${rowNum}`, [row]);
-      }
-    }
-  },
-
-  // Ensure Income sheet exists (migration helper for older spreadsheets)
-  ensureIncomeSheet: async (accessToken: string, spreadsheetId: string): Promise<void> => {
+  // Ensure Transactions sheet exists (migration helper for older spreadsheets)
+  ensureTransactionsSheet: async (accessToken: string, spreadsheetId: string): Promise<void> => {
     try {
       const spreadsheet = await sheetsApi.getSpreadsheet(accessToken, spreadsheetId);
-      if (!spreadsheet.sheets.includes('Income')) {
-        // Add Income sheet via batchUpdate
+      if (!spreadsheet.sheets.includes('Transactions')) {
+        // Add Transactions sheet via batchUpdate
         const response = await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
           method: 'POST',
           headers: {
@@ -415,7 +402,7 @@ export const sheetsApi = {
           body: JSON.stringify({
             requests: [{
               addSheet: {
-                properties: { title: 'Income' }
+                properties: { title: 'Transactions' }
               }
             }]
           })
@@ -423,8 +410,8 @@ export const sheetsApi = {
 
         if (response.ok) {
           // Add header row
-          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Income!A1:H1', [
-            ['ID', 'Date', 'Timestamp', 'Amount', 'Category', 'Payment Method', 'Description', 'Notes']
+          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Transactions!A1:K1', [
+            ['ID', 'Date', 'Timestamp', 'TransactionType', 'Amount', 'Category', 'ExpenseType', 'PaymentMethod', 'Description', 'Notes', 'Source']
           ]);
         }
       }

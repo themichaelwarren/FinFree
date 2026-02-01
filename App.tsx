@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Expense, AppConfig, AccountBalances, Theme, SyncMode } from './types';
+import { Expense, AppConfig, AccountBalances, Theme, SyncMode, Income, StartingBalance, Transfer, BankAccount } from './types';
 import { storage } from './services/storage';
 import { authService } from './services/auth';
 import { sheetsApi } from './services/sheetsApi';
@@ -10,7 +10,9 @@ import TransactionList from './components/TransactionList';
 import Settings from './components/Settings';
 import BudgetManager from './components/BudgetManager';
 import ExpenseFormModal from './components/ExpenseFormModal';
+import HelpModal from './components/HelpModal';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
+import { HelpCircle } from 'lucide-react';
 
 // Get current sync mode
 const getSyncMode = (config: AppConfig): SyncMode => {
@@ -23,20 +25,33 @@ const getSyncMode = (config: AppConfig): SyncMode => {
 const AppContent: React.FC = () => {
   const { user } = useAuth();
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [income, setIncome] = useState<Income[]>([]);
+  const [transfers, setTransfers] = useState<Transfer[]>([]);
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [config, setConfig] = useState<AppConfig>(storage.getConfig());
   const [activeTab, setActiveTab] = useState<'track' | 'budget' | 'history'>('track');
   const [showSettings, setShowSettings] = useState(false);
   const [showExpenseModal, setShowExpenseModal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [isLoading, setIsLoading] = useState(true);
 
   // Initial load: load local data and set up event listeners
   useEffect(() => {
+    // Run migration for multi-account support
+    storage.migrateToMultiAccount();
+
     const localConfig = storage.getConfig();
     const localExpenses = storage.getExpenses();
+    const localIncome = storage.getIncome();
+    const localTransfers = storage.getTransfers();
+    const localAccounts = storage.getAccounts();
     setConfig(localConfig);
     setExpenses(localExpenses);
+    setIncome(localIncome);
+    setTransfers(localTransfers);
+    setAccounts(localAccounts);
     setIsLoading(false);
 
     const handleStatusChange = () => setIsOnline(navigator.onLine);
@@ -67,16 +82,27 @@ const AppContent: React.FC = () => {
           const data = await sheetsApi.fetchAll(user.accessToken, localConfig.spreadsheetId);
           // Prefer categories from dedicated sheet, fall back to legacy JSON in config
           const categoriesFromCloud = data.categories || data.config?.categories || null;
+          // Type assertion for accounts - sheetsApi will be updated to include this
+          const dataWithAccounts = data as typeof data & { accounts?: BankAccount[] };
           const cloudData = {
             config: { ...data.config, categories: categoriesFromCloud } as AppConfig | null,
             expenses: data.expenses,
-            budgets: data.budgets
+            budgets: data.budgets,
+            income: data.income,
+            transfers: data.transfers || [],
+            accounts: dataWithAccounts.accounts || undefined
           };
           const merged = storage.mergeWithCloud(cloudData);
           storage.saveConfig(merged.config);
           storage.setExpenses(merged.expenses);
+          storage.setIncome(merged.income);
+          storage.setTransfers(merged.transfers);
+          storage.setAccounts(merged.accounts);
           setConfig(merged.config);
           setExpenses(merged.expenses);
+          setIncome(merged.income);
+          setTransfers(merged.transfers);
+          setAccounts(merged.accounts);
         } else if (syncMode === 'appsscript' && localConfig.sheetsUrl && localConfig.sheetsSecret) {
           // Apps Script mode
           const cloudData = await storage.fetchFromCloud(localConfig.sheetsUrl, localConfig.sheetsSecret);
@@ -84,21 +110,41 @@ const AppContent: React.FC = () => {
             const merged = storage.mergeWithCloud(cloudData);
             storage.saveConfig(merged.config);
             storage.setExpenses(merged.expenses);
+            storage.setIncome(merged.income);
+            storage.setAccounts(merged.accounts);
             setConfig(merged.config);
             setExpenses(merged.expenses);
+            setIncome(merged.income);
+            setAccounts(merged.accounts);
           }
         }
 
-        // After fetching, also push any unsynced local expenses to cloud
+        // After fetching, also push any unsynced local data to cloud
         const localExpenses = storage.getExpenses();
-        const unsynced = localExpenses.filter(e => !e.synced);
-        if (unsynced.length > 0 && syncMode === 'oauth' && localConfig.spreadsheetId) {
-          await sheetsApi.addExpenses(user.accessToken, localConfig.spreadsheetId, unsynced);
-          let updated = localExpenses;
-          unsynced.forEach(e => {
-            updated = storage.updateExpense(e.id, { synced: true });
-          });
-          setExpenses(updated);
+        const unsyncedExpenses = localExpenses.filter(e => !e.synced);
+        const localIncome = storage.getIncome();
+        const unsyncedIncome = localIncome.filter(i => !i.synced);
+
+        if (syncMode === 'oauth' && localConfig.spreadsheetId) {
+          // Sync unsynced expenses
+          if (unsyncedExpenses.length > 0) {
+            await sheetsApi.addExpenses(user.accessToken, localConfig.spreadsheetId, unsyncedExpenses);
+            let updated = localExpenses;
+            unsyncedExpenses.forEach(e => {
+              updated = storage.updateExpense(e.id, { synced: true });
+            });
+            setExpenses(updated);
+          }
+
+          // Sync unsynced income
+          if (unsyncedIncome.length > 0) {
+            await sheetsApi.addIncome(user.accessToken, localConfig.spreadsheetId, unsyncedIncome);
+            let updated = localIncome;
+            unsyncedIncome.forEach(i => {
+              updated = storage.updateIncome(i.id, { synced: true });
+            });
+            setIncome(updated);
+          }
         }
       } catch (error) {
         console.error('Cloud sync failed:', error);
@@ -116,20 +162,33 @@ const AppContent: React.FC = () => {
 
     setIsSyncing(true);
     const currentExpenses = storage.getExpenses();
-    const unsynced = currentExpenses.filter(e => !e.synced);
+    const unsyncedExpenses = currentExpenses.filter(e => !e.synced);
+    const currentIncome = storage.getIncome();
+    const unsyncedIncome = currentIncome.filter(i => !i.synced);
 
     try {
-      if (unsynced.length > 0) {
-        if (syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
-          // OAuth mode: sync directly via Sheets API
-          await sheetsApi.addExpenses(user.accessToken, config.spreadsheetId, unsynced);
+      if (syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
+        // OAuth mode: sync directly via Sheets API
+        if (unsyncedExpenses.length > 0) {
+          await sheetsApi.addExpenses(user.accessToken, config.spreadsheetId, unsyncedExpenses);
           let updated = currentExpenses;
-          unsynced.forEach(e => {
+          unsyncedExpenses.forEach(e => {
             updated = storage.updateExpense(e.id, { synced: true });
           });
           setExpenses(updated);
-        } else if (syncMode === 'appsscript') {
-          // Apps Script mode
+        }
+
+        if (unsyncedIncome.length > 0) {
+          await sheetsApi.addIncome(user.accessToken, config.spreadsheetId, unsyncedIncome);
+          let updated = currentIncome;
+          unsyncedIncome.forEach(i => {
+            updated = storage.updateIncome(i.id, { synced: true });
+          });
+          setIncome(updated);
+        }
+      } else if (syncMode === 'appsscript') {
+        // Apps Script mode
+        if (unsyncedExpenses.length > 0) {
           const syncedIds = await storage.syncToSheets(currentExpenses, config.sheetsUrl, config.sheetsSecret);
           if (syncedIds.length > 0) {
             let updated = currentExpenses;
@@ -137,6 +196,17 @@ const AppContent: React.FC = () => {
               updated = storage.updateExpense(id, { synced: true });
             });
             setExpenses(updated);
+          }
+        }
+
+        if (unsyncedIncome.length > 0) {
+          const syncedIds = await storage.syncIncomeToCloud(currentIncome, config.sheetsUrl, config.sheetsSecret);
+          if (syncedIds.length > 0) {
+            let updated = currentIncome;
+            syncedIds.forEach(id => {
+              updated = storage.updateIncome(id, { synced: true });
+            });
+            setIncome(updated);
           }
         }
       }
@@ -163,7 +233,23 @@ const AppContent: React.FC = () => {
 
     const updated = storage.saveExpense(newExpense);
     setExpenses(updated);
-    
+
+    if (isOnline) {
+      handleSync();
+    }
+  };
+
+  const handleSaveIncome = (newIncomeData: Omit<Income, 'id' | 'timestamp' | 'synced'>) => {
+    const newIncome: Income = {
+      ...newIncomeData,
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      synced: false
+    };
+
+    const updated = storage.saveIncome(newIncome);
+    setIncome(updated);
+
     if (isOnline) {
       handleSync();
     }
@@ -176,6 +262,13 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleDeleteIncome = (id: string) => {
+    if (confirm('Delete this income entry?')) {
+      const updated = storage.deleteIncome(id);
+      setIncome(updated);
+    }
+  };
+
   const handleUpdateExpense = (id: string, updates: Partial<Expense>) => {
     // Mark as unsynced when edited so it re-syncs
     const updated = storage.updateExpense(id, { ...updates, synced: false });
@@ -185,6 +278,78 @@ const AppContent: React.FC = () => {
     if (isOnline) {
       handleSync();
     }
+  };
+
+  const handleUpdateIncome = (id: string, updates: Partial<Income>) => {
+    // Mark as unsynced when edited so it re-syncs
+    const updated = storage.updateIncome(id, { ...updates, synced: false });
+    setIncome(updated);
+
+    // Trigger sync
+    if (isOnline) {
+      handleSync();
+    }
+  };
+
+  const handleSaveTransfer = (newTransferData: Omit<Transfer, 'id' | 'timestamp' | 'synced'>) => {
+    const newTransfer: Transfer = {
+      ...newTransferData,
+      id: crypto.randomUUID(),
+      timestamp: new Date().toISOString(),
+      synced: false
+    };
+
+    const updated = storage.saveTransfer(newTransfer);
+    setTransfers(updated);
+
+    if (isOnline) {
+      handleSync();
+    }
+  };
+
+  const handleDeleteTransfer = (id: string) => {
+    if (confirm('Delete this transfer?')) {
+      const updated = storage.deleteTransfer(id);
+      setTransfers(updated);
+    }
+  };
+
+  const handleUpdateTransfer = (id: string, updates: Partial<Transfer>) => {
+    // Mark as unsynced when edited so it re-syncs
+    const updated = storage.updateTransfer(id, { ...updates, synced: false });
+    setTransfers(updated);
+
+    // Trigger sync
+    if (isOnline) {
+      handleSync();
+    }
+  };
+
+  // Bank Account handlers
+  const handleAddAccount = (account: BankAccount) => {
+    const updated = storage.saveAccount(account);
+    setAccounts(updated);
+    // TODO: Sync accounts to cloud when sheetsApi is updated
+  };
+
+  const handleUpdateAccount = (id: string, updates: Partial<BankAccount>) => {
+    const updated = storage.updateAccount(id, updates);
+    setAccounts(updated);
+    // TODO: Sync accounts to cloud when sheetsApi is updated
+  };
+
+  const handleDeleteAccount = (id: string): { success: boolean; error?: string } => {
+    const result = storage.deleteAccount(id);
+    if (result.success) {
+      setAccounts(result.accounts);
+    }
+    return { success: result.success, error: result.error };
+  };
+
+  const handleSetDefaultAccount = (id: string) => {
+    const updated = storage.setDefaultAccount(id);
+    setAccounts(updated);
+    // TODO: Sync accounts to cloud when sheetsApi is updated
   };
 
   const handleConfigUpdate = async (newConfig: AppConfig) => {
@@ -251,6 +416,15 @@ const AppContent: React.FC = () => {
     }
   };
 
+  const handleStartingBalanceUpdate = async (startingBalance: StartingBalance) => {
+    const newBalances: AccountBalances = {
+      ...config.balances,
+      startingBalance,
+      lastUpdated: new Date().toISOString()
+    };
+    await handleBalanceUpdate(newBalances);
+  };
+
   const toggleTheme = async () => {
     const newTheme: Theme = config.theme === 'dark' ? 'light' : 'dark';
     const newConfig = { ...config, theme: newTheme };
@@ -281,10 +455,29 @@ const AppContent: React.FC = () => {
         return (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 lg:grid lg:grid-cols-2 lg:gap-8">
             <div>
-              <BudgetSummary expenses={expenses} config={config} onUpdateBalances={handleBalanceUpdate} isDark={isDark} />
+              <BudgetSummary
+                expenses={expenses}
+                income={income}
+                transfers={transfers}
+                config={config}
+                bankAccounts={accounts}
+                onUpdateBalances={handleBalanceUpdate}
+                onUpdateStartingBalance={handleStartingBalanceUpdate}
+                isDark={isDark}
+              />
             </div>
             <div>
-              <TransactionList expenses={expenses} onDelete={handleDeleteExpense} isDark={isDark} categories={config.categories} limit={8} />
+              <TransactionList
+                expenses={expenses}
+                income={income}
+                transfers={transfers}
+                onDeleteExpense={handleDeleteExpense}
+                onDeleteIncome={handleDeleteIncome}
+                onDeleteTransfer={handleDeleteTransfer}
+                isDark={isDark}
+                categories={config.categories}
+                limit={8}
+              />
             </div>
           </div>
         );
@@ -295,7 +488,19 @@ const AppContent: React.FC = () => {
       case 'history':
         return (
           <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <TransactionList expenses={expenses} onDelete={handleDeleteExpense} onEdit={handleUpdateExpense} categories={config.categories} isDark={isDark} />
+            <TransactionList
+              expenses={expenses}
+              income={income}
+              transfers={transfers}
+              onDeleteExpense={handleDeleteExpense}
+              onDeleteIncome={handleDeleteIncome}
+              onDeleteTransfer={handleDeleteTransfer}
+              onEditExpense={handleUpdateExpense}
+              onEditIncome={handleUpdateIncome}
+              onEditTransfer={handleUpdateTransfer}
+              categories={config.categories}
+              isDark={isDark}
+            />
           </div>
         );
     }
@@ -380,7 +585,14 @@ const AppContent: React.FC = () => {
             className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
           >
             <ICONS.Plus className="w-4 h-4" />
-            Add Expense
+            Add Entry
+          </button>
+          <button
+            onClick={() => setShowHelp(true)}
+            className={`p-2.5 lg:p-2 rounded-xl transition-all active:scale-95 ${isDark ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900'}`}
+            title="Help"
+          >
+            <HelpCircle className="w-5 h-5 lg:w-4 lg:h-4" />
           </button>
           <button
             onClick={toggleTheme}
@@ -431,14 +643,17 @@ const AppContent: React.FC = () => {
         <ICONS.Plus className="w-6 h-6" />
       </button>
 
-      {/* Expense Form Modal */}
+      {/* Expense/Income/Transfer Form Modal */}
       <ExpenseFormModal
         isOpen={showExpenseModal}
         onClose={() => setShowExpenseModal(false)}
-        onSave={handleSaveExpense}
+        onSaveExpense={handleSaveExpense}
+        onSaveIncome={handleSaveIncome}
+        onSaveTransfer={handleSaveTransfer}
         apiKey={config.geminiKey}
         isDark={isDark}
         categories={config.categories}
+        bankAccounts={accounts}
       />
 
       {showSettings && (
@@ -447,8 +662,20 @@ const AppContent: React.FC = () => {
           onSave={handleConfigUpdate}
           onClose={() => setShowSettings(false)}
           isDark={isDark}
+          bankAccounts={accounts}
+          onAddAccount={handleAddAccount}
+          onUpdateAccount={handleUpdateAccount}
+          onDeleteAccount={handleDeleteAccount}
+          onSetDefaultAccount={handleSetDefaultAccount}
         />
       )}
+
+      {/* Help Modal */}
+      <HelpModal
+        isOpen={showHelp}
+        onClose={() => setShowHelp(false)}
+        isDark={isDark}
+      />
 
     </div>
     </div>

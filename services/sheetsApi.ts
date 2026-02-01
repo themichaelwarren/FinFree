@@ -1,11 +1,11 @@
-import { Expense, AppConfig, MonthlyBudget, AccountBalances, CategoryDefinition } from '../types';
+import { Expense, AppConfig, MonthlyBudget, AccountBalances, CategoryDefinition, Income, Transfer } from '../types';
 import { CATEGORIES, CATEGORY_TYPES } from '../constants';
 
 const SHEETS_API = 'https://sheets.googleapis.com/v4/spreadsheets';
 const DRIVE_API = 'https://www.googleapis.com/drive/v3/files';
 
 interface SheetRange {
-  values: (string | number | boolean)[][];
+  values: (string | number)[][];
 }
 
 export const sheetsApi = {
@@ -69,6 +69,32 @@ export const sheetsApi = {
                 { values: [{ userEnteredValue: { stringValue: 'theme' } }, { userEnteredValue: { stringValue: 'dark' } }] },
                 { values: [{ userEnteredValue: { stringValue: 'balances' } }, { userEnteredValue: { stringValue: '{}' } }] }
               ]
+            }]
+          },
+          {
+            properties: { title: 'Income', index: 4 },
+            data: [{
+              startRow: 0,
+              startColumn: 0,
+              rowData: [{
+                values: ['ID', 'Date', 'Timestamp', 'Amount', 'Category', 'Payment Method', 'Description', 'Notes'].map(v => ({
+                  userEnteredValue: { stringValue: v },
+                  userEnteredFormat: { textFormat: { bold: true } }
+                }))
+              }]
+            }]
+          },
+          {
+            properties: { title: 'Transfers', index: 5 },
+            data: [{
+              startRow: 0,
+              startColumn: 0,
+              rowData: [{
+                values: ['ID', 'Date', 'Timestamp', 'Amount', 'Direction', 'Description', 'Notes'].map(v => ({
+                  userEnteredValue: { stringValue: v },
+                  userEnteredFormat: { textFormat: { bold: true } }
+                }))
+              }]
             }]
           }
         ]
@@ -270,6 +296,130 @@ export const sheetsApi = {
     }
   },
 
+  // Get all income
+  getIncome: async (accessToken: string, spreadsheetId: string): Promise<Income[]> => {
+    try {
+      const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Income!A2:H');
+
+      return values.map(row => ({
+        id: String(row[0]),
+        date: String(row[1]),
+        timestamp: String(row[2]),
+        amount: Number(row[3]),
+        category: String(row[4]) as Income['category'],
+        paymentMethod: (String(row[5]) || 'Bank') as Income['paymentMethod'],
+        description: String(row[6] || ''),
+        notes: String(row[7] || ''),
+        synced: true
+      }));
+    } catch {
+      // Income sheet might not exist in older spreadsheets
+      return [];
+    }
+  },
+
+  // Add or update income
+  addIncome: async (accessToken: string, spreadsheetId: string, income: Income[]): Promise<void> => {
+    if (income.length === 0) return;
+
+    // Ensure Income sheet exists (for older spreadsheets)
+    await sheetsApi.ensureIncomeSheet(accessToken, spreadsheetId);
+
+    // Get existing income to determine which need adding vs updating
+    const existing = await sheetsApi.getIncome(accessToken, spreadsheetId);
+    const existingIds = new Set(existing.map(i => i.id));
+
+    const newIncome = income.filter(i => !existingIds.has(i.id));
+    const updatedIncome = income.filter(i => existingIds.has(i.id));
+
+    // Append new income
+    if (newIncome.length > 0) {
+      const rows = newIncome.map(i => [
+        i.id,
+        i.date,
+        i.timestamp,
+        i.amount,
+        i.category,
+        i.paymentMethod || 'Bank',
+        i.description || '',
+        i.notes || ''
+      ]);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Income!A:H', rows);
+    }
+
+    // Update existing income
+    if (updatedIncome.length > 0) {
+      await sheetsApi.updateIncome(accessToken, spreadsheetId, updatedIncome);
+    }
+  },
+
+  // Update existing income by finding their rows and updating in place
+  updateIncome: async (accessToken: string, spreadsheetId: string, income: Income[]): Promise<void> => {
+    if (income.length === 0) return;
+
+    // Get all current data to find row numbers
+    const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Income!A:H');
+
+    // Build a map of ID -> row index (1-based, accounting for header)
+    const idToRow = new Map<string, number>();
+    values.forEach((row, index) => {
+      if (index === 0) return; // Skip header
+      const id = String(row[0]);
+      idToRow.set(id, index + 1); // +1 because Sheets rows are 1-indexed
+    });
+
+    // Update each income in its row
+    for (const inc of income) {
+      const rowNum = idToRow.get(inc.id);
+      if (rowNum) {
+        const row = [
+          inc.id,
+          inc.date,
+          inc.timestamp,
+          inc.amount,
+          inc.category,
+          inc.paymentMethod || 'Bank',
+          inc.description || '',
+          inc.notes || ''
+        ];
+        await sheetsApi.updateValues(accessToken, spreadsheetId, `Income!A${rowNum}:H${rowNum}`, [row]);
+      }
+    }
+  },
+
+  // Ensure Income sheet exists (migration helper for older spreadsheets)
+  ensureIncomeSheet: async (accessToken: string, spreadsheetId: string): Promise<void> => {
+    try {
+      const spreadsheet = await sheetsApi.getSpreadsheet(accessToken, spreadsheetId);
+      if (!spreadsheet.sheets.includes('Income')) {
+        // Add Income sheet via batchUpdate
+        const response = await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            requests: [{
+              addSheet: {
+                properties: { title: 'Income' }
+              }
+            }]
+          })
+        });
+
+        if (response.ok) {
+          // Add header row
+          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Income!A1:H1', [
+            ['ID', 'Date', 'Timestamp', 'Amount', 'Category', 'Payment Method', 'Description', 'Notes']
+          ]);
+        }
+      }
+    } catch {
+      // Ignore errors - sheet might already exist
+    }
+  },
+
   // Get budgets
   getBudgets: async (accessToken: string, spreadsheetId: string): Promise<Record<string, MonthlyBudget>> => {
     const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Budgets!A2:E');
@@ -419,21 +569,107 @@ export const sheetsApi = {
     await sheetsApi.updateValues(accessToken, spreadsheetId, 'Config!A2:B', rows);
   },
 
+  // Get all transfers
+  getTransfers: async (accessToken: string, spreadsheetId: string): Promise<Transfer[]> => {
+    try {
+      const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transfers!A2:G');
+
+      return values.map(row => ({
+        id: String(row[0]),
+        date: String(row[1]),
+        timestamp: String(row[2]),
+        amount: Number(row[3]),
+        direction: String(row[4]) as Transfer['direction'],
+        description: String(row[5] || ''),
+        notes: String(row[6] || ''),
+        synced: true
+      }));
+    } catch {
+      // Transfers sheet might not exist in older spreadsheets
+      return [];
+    }
+  },
+
+  // Add or update transfers
+  addTransfers: async (accessToken: string, spreadsheetId: string, transfers: Transfer[]): Promise<void> => {
+    if (transfers.length === 0) return;
+
+    // Ensure Transfers sheet exists (for older spreadsheets)
+    await sheetsApi.ensureTransfersSheet(accessToken, spreadsheetId);
+
+    // Get existing transfers to determine which need adding vs updating
+    const existing = await sheetsApi.getTransfers(accessToken, spreadsheetId);
+    const existingIds = new Set(existing.map(t => t.id));
+
+    const newTransfers = transfers.filter(t => !existingIds.has(t.id));
+
+    // Append new transfers
+    if (newTransfers.length > 0) {
+      const rows = newTransfers.map(t => [
+        t.id,
+        t.date,
+        t.timestamp,
+        t.amount,
+        t.direction,
+        t.description || '',
+        t.notes || ''
+      ]);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transfers!A:G', rows);
+    }
+  },
+
+  // Ensure Transfers sheet exists (migration helper for older spreadsheets)
+  ensureTransfersSheet: async (accessToken: string, spreadsheetId: string): Promise<void> => {
+    try {
+      const spreadsheet = await sheetsApi.getSpreadsheet(accessToken, spreadsheetId);
+      if (!spreadsheet.sheets.includes('Transfers')) {
+        // Add Transfers sheet via batchUpdate
+        const response = await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            requests: [{
+              addSheet: {
+                properties: { title: 'Transfers' }
+              }
+            }]
+          })
+        });
+
+        if (response.ok) {
+          // Add header row
+          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Transfers!A1:G1', [
+            ['ID', 'Date', 'Timestamp', 'Amount', 'Direction', 'Description', 'Notes']
+          ]);
+        }
+      }
+    } catch {
+      // Ignore errors - sheet might already exist
+    }
+  },
+
   // Fetch all data at once
   fetchAll: async (accessToken: string, spreadsheetId: string): Promise<{
     expenses: Expense[];
     budgets: Record<string, MonthlyBudget>;
     config: Partial<AppConfig>;
     categories: CategoryDefinition[] | null;
+    income: Income[];
+    transfers: Transfer[];
   }> => {
-    const [expenses, budgets, config, categories] = await Promise.all([
+    const [expenses, budgets, config, categories, income, transfers] = await Promise.all([
       sheetsApi.getExpenses(accessToken, spreadsheetId),
       sheetsApi.getBudgets(accessToken, spreadsheetId),
       sheetsApi.getConfig(accessToken, spreadsheetId),
-      sheetsApi.getCategories(accessToken, spreadsheetId)
+      sheetsApi.getCategories(accessToken, spreadsheetId),
+      sheetsApi.getIncome(accessToken, spreadsheetId),
+      sheetsApi.getTransfers(accessToken, spreadsheetId)
     ]);
 
-    return { expenses, budgets, config, categories };
+    return { expenses, budgets, config, categories, income, transfers };
   },
 
   // Extract spreadsheet ID from URL

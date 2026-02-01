@@ -1,7 +1,7 @@
 
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ICONS, PAYMENT_METHODS, DEFAULT_CATEGORIES } from '../constants';
-import { Category, ExpenseType, Expense, ReceiptExtraction, PaymentMethod, CategoryDefinition } from '../types';
+import { Category, ExpenseType, Expense, ReceiptExtraction, PaymentMethod, CategoryDefinition, BankAccount } from '../types';
 import { extractReceiptData } from '../services/gemini';
 
 interface ExpenseFormProps {
@@ -9,9 +9,10 @@ interface ExpenseFormProps {
   apiKey: string;
   isDark?: boolean;
   categories?: CategoryDefinition[];
+  bankAccounts?: BankAccount[];
 }
 
-const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true, categories = DEFAULT_CATEGORIES }) => {
+const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true, categories = DEFAULT_CATEGORIES, bankAccounts = [] }) => {
   const [amount, setAmount] = useState<string>('');
   const [type, setType] = useState<ExpenseType>('NEED');
   const [category, setCategory] = useState<Category>('');
@@ -19,7 +20,18 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
+  const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
+
+  // Get default account for Card/Bank payments
+  const defaultAccount = bankAccounts.find(a => a.isDefault) || bankAccounts[0];
+
+  // Auto-select default account when payment method changes to Card/Bank
+  useEffect(() => {
+    if (paymentMethod !== 'Cash' && !selectedAccountId && defaultAccount) {
+      setSelectedAccountId(defaultAccount.id);
+    }
+  }, [paymentMethod, selectedAccountId, defaultAccount]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -41,17 +53,30 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
   }, [filteredCategories, category]);
 
   // Check if form is valid for submission
-  const isFormValid = amount && !isNaN(Number(amount)) && Number(amount) > 0 && category && paymentMethod && date;
+  const needsAccount = paymentMethod !== 'Cash' && bankAccounts.length > 0;
+  const hasValidAccount = !needsAccount || selectedAccountId;
+  const isFormValid = amount && !isNaN(Number(amount)) && Number(amount) > 0 && category && paymentMethod && date && hasValidAccount;
+
+  // Build the final payment method string
+  const getFinalPaymentMethod = (): string => {
+    if (paymentMethod === 'Cash') return 'Cash';
+    if (bankAccounts.length === 0) return paymentMethod; // Legacy: no accounts defined
+    if (paymentMethod === 'Card') {
+      return selectedAccountId ? `Card:${selectedAccountId}` : 'Card';
+    }
+    // Bank transfer - use account ID directly
+    return selectedAccountId || 'Bank';
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || isNaN(Number(amount)) || !category || !paymentMethod || !date) return;
+    if (!isFormValid) return;
 
     onSave({
       amount: Number(amount),
       category,
       type,
-      paymentMethod,
+      paymentMethod: getFinalPaymentMethod() as PaymentMethod,
       store: store || 'Unknown Store',
       date,
       notes,
@@ -65,6 +90,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
     setDate('');
     setCategory('');
     setPaymentMethod('' as PaymentMethod);
+    setSelectedAccountId('');
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,7 +219,15 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
             <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Payment</label>
             <select
               value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              onChange={(e) => {
+                setPaymentMethod(e.target.value as PaymentMethod);
+                // Reset account selection when changing payment method
+                if (e.target.value === 'Cash') {
+                  setSelectedAccountId('');
+                } else if (defaultAccount) {
+                  setSelectedAccountId(defaultAccount.id);
+                }
+              }}
               className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 focus:ring-white/10' : 'bg-gray-100 focus:ring-gray-300'} ${paymentMethod ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-zinc-500' : 'text-gray-400')}`}
             >
               <option value="" disabled>Select...</option>
@@ -203,6 +237,27 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
             </select>
           </div>
         </div>
+
+        {/* Account selector for Card/Bank payments */}
+        {paymentMethod !== 'Cash' && paymentMethod && bankAccounts.length > 0 && (
+          <div>
+            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+              {paymentMethod === 'Card' ? 'Card From Account' : 'From Account'}
+            </label>
+            <select
+              value={selectedAccountId}
+              onChange={(e) => setSelectedAccountId(e.target.value)}
+              className={`w-full border-none rounded-xl py-3 px-3 text-sm focus:ring-2 outline-none appearance-none font-medium ${isDark ? 'bg-zinc-900 focus:ring-white/10' : 'bg-gray-100 focus:ring-gray-300'} ${selectedAccountId ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-zinc-500' : 'text-gray-400')}`}
+            >
+              <option value="" disabled>Select account...</option>
+              {bankAccounts.map(account => (
+                <option key={account.id} value={account.id}>
+                  {account.name}{account.isDefault ? ' (Default)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="overflow-hidden">
           <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>

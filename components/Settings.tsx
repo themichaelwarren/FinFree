@@ -1,16 +1,32 @@
 
 import React, { useState } from 'react';
-import { AppConfig } from '../types';
+import { AppConfig, BankAccount } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import AccountManager from './AccountManager';
 
 interface SettingsProps {
   config: AppConfig;
   onSave: (config: AppConfig) => void;
   onClose: () => void;
   isDark?: boolean;
+  bankAccounts?: BankAccount[];
+  onAddAccount?: (account: BankAccount) => void;
+  onUpdateAccount?: (id: string, updates: Partial<BankAccount>) => void;
+  onDeleteAccount?: (id: string) => { success: boolean; error?: string };
+  onSetDefaultAccount?: (id: string) => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ config, onSave, onClose, isDark = true }) => {
+const Settings: React.FC<SettingsProps> = ({
+  config,
+  onSave,
+  onClose,
+  isDark = true,
+  bankAccounts = [],
+  onAddAccount,
+  onUpdateAccount,
+  onDeleteAccount,
+  onSetDefaultAccount
+}) => {
   const [form, setForm] = useState(config);
   const [oauthClientId, setOauthClientId] = useState('');
   const [spreadsheetInput, setSpreadsheetInput] = useState('');
@@ -152,6 +168,21 @@ const Settings: React.FC<SettingsProps> = ({ config, onSave, onClose, isDark = t
                   </div>
                 </div>
               )}
+            </section>
+          )}
+
+          {/* BANK ACCOUNTS */}
+          {onAddAccount && onUpdateAccount && onDeleteAccount && onSetDefaultAccount && (
+            <section className="space-y-4">
+              <h3 className={sectionTitleClass}>Bank Accounts</h3>
+              <AccountManager
+                accounts={bankAccounts}
+                onAddAccount={onAddAccount}
+                onUpdateAccount={onUpdateAccount}
+                onDeleteAccount={onDeleteAccount}
+                onSetDefault={onSetDefaultAccount}
+                isDark={isDark}
+              />
             </section>
           )}
 

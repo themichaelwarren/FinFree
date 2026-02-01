@@ -37,6 +37,59 @@ export interface Expense {
   synced: boolean;
 }
 
+// Income tracking types
+export type IncomeCategory = 'SALARY' | 'FREELANCE' | 'BONUS' | 'REFUND' | 'GIFT' | 'OTHER';
+
+// Income only comes in as Cash or Bank (no Card)
+export type IncomePaymentMethod = 'Cash' | 'Bank';
+
+export interface Income {
+  id: string;
+  timestamp: string;
+  date: string;
+  amount: number;
+  category: IncomeCategory;
+  paymentMethod: IncomePaymentMethod;
+  description: string;
+  notes: string;
+  synced: boolean;
+}
+
+// Bank Account Definition (user-defined accounts)
+export interface BankAccount {
+  id: string;           // e.g., 'bank_ufj', 'bank_rakuten'
+  name: string;         // e.g., 'UFJ Checking', 'Rakuten'
+  isDefault: boolean;   // Default for Card payments
+  createdAt: string;
+}
+
+// Reserved account ID for Cash (cannot be deleted)
+export const CASH_ACCOUNT_ID = 'cash';
+
+// Account transfers (ATM withdrawal, deposit cash to bank, bank-to-bank)
+export type TransferDirection = 'BANK_TO_CASH' | 'CASH_TO_BANK';
+
+export interface Transfer {
+  id: string;
+  timestamp: string;
+  date: string;
+  amount: number;
+  fromAccountId: string;  // 'cash' or bank account ID
+  toAccountId: string;    // 'cash' or bank account ID
+  description: string;
+  notes: string;
+  synced: boolean;
+  direction?: TransferDirection;  // Legacy, kept for migration
+}
+
+// Starting balance for running total calculations
+export interface StartingBalance {
+  cash: number;
+  accounts: Record<string, number>;  // accountId → balance
+  asOfDate: string;  // YYYY-MM-DD
+  bank?: number;  // Deprecated, kept for migration
+}
+
 export interface CategoryBudget {
   amount: number;
   type: ExpenseType;
@@ -49,8 +102,10 @@ export interface MonthlyBudget {
 
 export interface AccountBalances {
   cash: number;
-  bank: number;
+  accounts: Record<string, number>;  // accountId → balance
   lastUpdated: string;
+  startingBalance?: StartingBalance;
+  bank?: number;  // Deprecated, kept for migration
 }
 
 export type SyncMode = 'oauth' | 'appsscript' | 'local';

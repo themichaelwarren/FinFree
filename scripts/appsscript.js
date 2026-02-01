@@ -17,6 +17,7 @@ const API_SECRET = 'xK9mP2qL7nR4wY6j';
 const EXPENSES_SHEET = 'Expenses';
 const CONFIG_SHEET = 'Config';
 const BUDGETS_SHEET = 'Budgets';
+const INCOME_SHEET = 'Income';
 
 function verifySecret(secret) {
   return secret === API_SECRET;
@@ -48,6 +49,11 @@ function doPost(e) {
     // Handle budgets sync
     if (data.type === 'budgets') {
       return saveBudgets(ss, data.budgets);
+    }
+
+    // Handle income sync
+    if (data.type === 'income') {
+      return saveIncome(ss, data.income);
     }
 
     // Handle expense sync (default behavior)
@@ -82,6 +88,10 @@ function doGet(e) {
 
     if (type === 'budgets' || type === 'all') {
       result.budgets = getBudgets(ss);
+    }
+
+    if (type === 'income' || type === 'all') {
+      result.income = getIncome(ss);
     }
 
     return ContentService.createTextOutput(JSON.stringify({
@@ -325,4 +335,102 @@ function getBudgets(ss) {
   });
 
   return budgets;
+}
+
+function saveIncome(ss, incomeData) {
+  let sheet = ss.getSheetByName(INCOME_SHEET);
+
+  // Create Income sheet with headers if it doesn't exist
+  if (!sheet) {
+    sheet = ss.insertSheet(INCOME_SHEET);
+    sheet.getRange('A1:H1').setValues([[
+      'ID', 'Date', 'Timestamp', 'Amount', 'Category',
+      'Payment Method', 'Description', 'Notes'
+    ]]);
+    sheet.getRange('A1:H1').setFontWeight('bold');
+  }
+
+  // Get existing data to check for duplicates and updates
+  const existingData = sheet.getDataRange().getValues();
+
+  // Build a map of existing IDs to their row numbers
+  const idToRowNum = {};
+  existingData.slice(1).forEach((row, index) => {
+    idToRowNum[row[0]] = index + 2;
+  });
+
+  const incomeArray = Array.isArray(incomeData) ? incomeData : [incomeData];
+
+  // Separate into new income and updates
+  const newIncome = incomeArray.filter(inc => !idToRowNum[inc.id]);
+  const updatedIncome = incomeArray.filter(inc => idToRowNum[inc.id]);
+
+  let addedCount = 0;
+  let updatedCount = 0;
+
+  // Update existing income
+  for (const inc of updatedIncome) {
+    const rowNum = idToRowNum[inc.id];
+    const rowData = [
+      inc.id,
+      inc.date,
+      inc.timestamp,
+      inc.amount,
+      inc.category,
+      inc.paymentMethod || 'Bank',
+      inc.description || '',
+      inc.notes || ''
+    ];
+    sheet.getRange(rowNum, 1, 1, 8).setValues([rowData]);
+    updatedCount++;
+  }
+
+  // Append new income
+  if (newIncome.length > 0) {
+    const rows = newIncome.map(inc => [
+      inc.id,
+      inc.date,
+      inc.timestamp,
+      inc.amount,
+      inc.category,
+      inc.paymentMethod || 'Bank',
+      inc.description || '',
+      inc.notes || ''
+    ]);
+
+    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 8).setValues(rows);
+    addedCount = rows.length;
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({
+    success: true,
+    added: addedCount,
+    updated: updatedCount
+  })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function getIncome(ss) {
+  const sheet = ss.getSheetByName(INCOME_SHEET);
+
+  if (!sheet) {
+    return [];
+  }
+
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return [];
+  }
+
+  // Skip header row, map to income objects
+  return data.slice(1).map(row => ({
+    id: row[0],
+    date: row[1],
+    timestamp: row[2],
+    amount: row[3],
+    category: row[4],
+    paymentMethod: row[5] || 'Bank',
+    description: row[6] || '',
+    notes: row[7] || '',
+    synced: true
+  }));
 }

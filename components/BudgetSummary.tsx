@@ -1,19 +1,34 @@
 
-import React, { useState, useRef } from 'react';
-import { Expense, Category, AppConfig, ExpenseType, AccountBalances } from '../types';
+import React, { useState, useRef, useMemo } from 'react';
+import { Expense, AppConfig, AccountBalances, Income, StartingBalance, Transfer, BankAccount } from '../types';
 import { CATEGORIES, getBudgetForMonth, ICONS } from '../constants';
+import { calculations } from '../services/calculations';
 
 interface BudgetSummaryProps {
   expenses: Expense[];
+  income: Income[];
+  transfers?: Transfer[];
   config: AppConfig;
+  bankAccounts?: BankAccount[];
   onUpdateBalances?: (balances: AccountBalances) => void;
+  onUpdateStartingBalance?: (startingBalance: StartingBalance) => void;
   isDark?: boolean;
 }
 
-const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config, onUpdateBalances, isDark = true }) => {
+const BudgetSummary: React.FC<BudgetSummaryProps> = ({
+  expenses,
+  income,
+  transfers = [],
+  config,
+  bankAccounts = [],
+  onUpdateBalances,
+  onUpdateStartingBalance,
+  isDark = true
+}) => {
   const [viewMonth, setViewMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [showStartingBalanceEdit, setShowStartingBalanceEdit] = useState(false);
   const monthInputRef = useRef<HTMLInputElement>(null);
-  
+
   const budget = getBudgetForMonth(config.budgets, viewMonth);
 
   const adjustMonth = (delta: number) => {
@@ -28,7 +43,7 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config, onUpdat
   });
 
   const totalSpent = monthlyExpenses.reduce((sum, e) => sum + e.amount, 0);
-  
+
   // Breakdown by Type (NEED/WANT/SAVE)
   const typeSpent = {
     NEED: monthlyExpenses.filter(e => e.type === 'NEED').reduce((sum, e) => sum + e.amount, 0),
@@ -40,12 +55,208 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config, onUpdat
 
   const monthName = new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(new Date(viewMonth + '-01'));
 
+  // Calculate running balance from starting balance + income - expenses + transfers
+  const runningBalance = useMemo(() =>
+    calculations.calculateRunningBalance(
+      config.balances?.startingBalance,
+      income,
+      expenses,
+      transfers,
+      bankAccounts
+    ),
+    [config.balances?.startingBalance, income, expenses, transfers, bankAccounts]
+  );
+
+  // Calculate daily allowance for current month
+  const dailyAllowance = useMemo(() =>
+    calculations.calculateDailyAllowance(
+      budget,
+      expenses,
+      viewMonth
+    ),
+    [budget, expenses, viewMonth]
+  );
+
+  // Monthly income and net cash flow
+  const monthlyIncome = calculations.getMonthlyIncome(income, viewMonth);
+  const netCashFlow = calculations.getNetCashFlow(income, expenses, viewMonth);
+
   return (
     <div className={`rounded-3xl p-6 mb-8 shadow-2xl overflow-hidden relative group ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
       {/* Background Month Watermark */}
       <div className={`absolute -top-4 -right-4 text-[120px] font-black pointer-events-none select-none tracking-tighter uppercase leading-none ${isDark ? 'text-white/[0.02]' : 'text-black/[0.02]'}`}>
         {new Date(viewMonth + '-01').getMonth() + 1}
       </div>
+
+      {/* Running Balance - Cash on Hand */}
+      <div className={`mb-6 p-4 rounded-2xl relative z-10 ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Cash on Hand</h3>
+          {config.balances?.startingBalance && (
+            <button
+              onClick={() => setShowStartingBalanceEdit(!showStartingBalanceEdit)}
+              className={`text-[8px] font-medium ${isDark ? 'text-zinc-600 hover:text-zinc-400' : 'text-gray-400 hover:text-gray-600'}`}
+            >
+              {showStartingBalanceEdit ? 'Hide' : 'Edit Starting Balance'}
+            </button>
+          )}
+        </div>
+
+        <div className={`grid gap-4 mb-3 ${bankAccounts.length > 1 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div>
+            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Cash</p>
+            <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{runningBalance.cash.toLocaleString()}</p>
+          </div>
+          {bankAccounts.length === 0 ? (
+            <div>
+              <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Bank</p>
+              <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{(runningBalance.bank || 0).toLocaleString()}</p>
+            </div>
+          ) : (
+            bankAccounts.map(account => (
+              <div key={account.id}>
+                <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                  {account.name}
+                  {account.isDefault && <span className="text-amber-500">*</span>}
+                </p>
+                <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                  ¥{(runningBalance.accounts[account.id] || 0).toLocaleString()}
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+
+        <div className={`pt-2 border-t ${isDark ? 'border-zinc-800/50' : 'border-gray-200'}`}>
+          <div className="flex justify-between items-center">
+            <p className={`text-[9px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Total</p>
+            <p className={`text-2xl font-black ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{runningBalance.total.toLocaleString()}</p>
+          </div>
+        </div>
+
+        {/* Starting Balance Edit */}
+        {showStartingBalanceEdit && onUpdateStartingBalance && (
+          <div className={`mt-4 pt-4 border-t space-y-3 ${isDark ? 'border-zinc-800/50' : 'border-gray-200'}`}>
+            <p className={`text-[9px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Starting Balance</p>
+            {/* Cash input */}
+            <div>
+              <label className={`text-[8px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Cash</label>
+              <input
+                type="number"
+                value={config.balances?.startingBalance?.cash || ''}
+                onChange={(e) => onUpdateStartingBalance({
+                  cash: Number(e.target.value) || 0,
+                  accounts: config.balances?.startingBalance?.accounts || {},
+                  asOfDate: config.balances?.startingBalance?.asOfDate || new Date().toISOString().split('T')[0],
+                  bank: config.balances?.startingBalance?.bank
+                })}
+                className={`w-full p-2 rounded-lg text-sm font-medium ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
+                placeholder="0"
+              />
+            </div>
+            {/* Bank account inputs */}
+            {bankAccounts.length === 0 ? (
+              <div>
+                <label className={`text-[8px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Bank</label>
+                <input
+                  type="number"
+                  value={config.balances?.startingBalance?.bank || ''}
+                  onChange={(e) => onUpdateStartingBalance({
+                    cash: config.balances?.startingBalance?.cash || 0,
+                    accounts: {},
+                    asOfDate: config.balances?.startingBalance?.asOfDate || new Date().toISOString().split('T')[0],
+                    bank: Number(e.target.value) || 0
+                  })}
+                  className={`w-full p-2 rounded-lg text-sm font-medium ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
+                  placeholder="0"
+                />
+              </div>
+            ) : (
+              <div className={`grid gap-2 ${bankAccounts.length > 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                {bankAccounts.map(account => (
+                  <div key={account.id}>
+                    <label className={`text-[8px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                      {account.name} {account.isDefault && '(Default)'}
+                    </label>
+                    <input
+                      type="number"
+                      value={config.balances?.startingBalance?.accounts?.[account.id] || ''}
+                      onChange={(e) => onUpdateStartingBalance({
+                        cash: config.balances?.startingBalance?.cash || 0,
+                        accounts: {
+                          ...config.balances?.startingBalance?.accounts,
+                          [account.id]: Number(e.target.value) || 0
+                        },
+                        asOfDate: config.balances?.startingBalance?.asOfDate || new Date().toISOString().split('T')[0]
+                      })}
+                      className={`w-full p-2 rounded-lg text-sm font-medium ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
+                      placeholder="0"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Date on its own row for full visibility */}
+            <div>
+              <label className={`text-[8px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>As of Date</label>
+              <input
+                type="date"
+                value={config.balances?.startingBalance?.asOfDate || ''}
+                onChange={(e) => onUpdateStartingBalance({
+                  cash: config.balances?.startingBalance?.cash || 0,
+                  accounts: config.balances?.startingBalance?.accounts || {},
+                  asOfDate: e.target.value
+                })}
+                className={`w-full p-2 rounded-lg text-sm font-medium ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Prompt to set starting balance if not set */}
+        {!config.balances?.startingBalance && onUpdateStartingBalance && (
+          <button
+            onClick={() => {
+              // Initialize accounts from bank accounts
+              const initialAccounts: Record<string, number> = {};
+              bankAccounts.forEach(acc => {
+                initialAccounts[acc.id] = 0;
+              });
+              onUpdateStartingBalance({
+                cash: config.balances?.cash || 0,
+                accounts: initialAccounts,
+                asOfDate: new Date().toISOString().split('T')[0],
+                bank: config.balances?.bank || 0
+              });
+            }}
+            className={`mt-3 w-full py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
+              isDark ? 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-700'
+            }`}
+          >
+            Set Starting Balance
+          </button>
+        )}
+      </div>
+
+      {/* Daily Budget Allowance */}
+      {dailyAllowance.daysRemaining > 0 && (
+        <div className={`mb-6 p-4 rounded-2xl relative z-10 ${isDark ? 'bg-emerald-950/30 border border-emerald-900/30' : 'bg-emerald-50 border border-emerald-200'}`}>
+          <div className="flex justify-between items-center">
+            <div>
+              <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-emerald-500/70' : 'text-emerald-600'}`}>Daily Budget</p>
+              <p className={`text-2xl font-black ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>
+                ¥{Math.round(dailyAllowance.overall).toLocaleString()}<span className="text-sm font-medium opacity-60">/day</span>
+              </p>
+            </div>
+            <div className="text-right">
+              <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>{dailyAllowance.daysRemaining} days left</p>
+              <p className={`text-sm font-medium ${dailyAllowance.budgetRemaining >= 0 ? (isDark ? 'text-zinc-400' : 'text-gray-600') : 'text-rose-500'}`}>
+                ¥{Math.round(dailyAllowance.budgetRemaining).toLocaleString()} remaining
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex justify-between items-start mb-8 relative z-10">
         <div className="space-y-1">
@@ -78,6 +289,24 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config, onUpdat
         <div className="text-right">
           <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-1 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Target</p>
           <p className={`font-black tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{budget.salary.toLocaleString()}</p>
+        </div>
+      </div>
+
+      {/* Monthly Income & Net Cash Flow */}
+      <div className={`grid grid-cols-3 gap-3 mb-6 relative z-10`}>
+        <div className={`p-3 rounded-xl ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}>
+          <p className={`text-[8px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Income</p>
+          <p className={`text-sm font-bold ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`}>+¥{monthlyIncome.toLocaleString()}</p>
+        </div>
+        <div className={`p-3 rounded-xl ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}>
+          <p className={`text-[8px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Expenses</p>
+          <p className={`text-sm font-bold ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>-¥{totalSpent.toLocaleString()}</p>
+        </div>
+        <div className={`p-3 rounded-xl ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}>
+          <p className={`text-[8px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Net</p>
+          <p className={`text-sm font-bold ${netCashFlow >= 0 ? (isDark ? 'text-emerald-400' : 'text-emerald-600') : (isDark ? 'text-rose-400' : 'text-rose-600')}`}>
+            {netCashFlow >= 0 ? '+' : ''}¥{netCashFlow.toLocaleString()}
+          </p>
         </div>
       </div>
 
@@ -148,11 +377,11 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({ expenses, config, onUpdat
         })}
       </div>
 
-      {/* Account Balances */}
-      {onUpdateBalances && (
+      {/* Legacy Account Balances (manual entry) - only show if no starting balance set */}
+      {onUpdateBalances && !config.balances?.startingBalance && (
         <div className={`mt-8 pt-6 border-t relative z-10 ${isDark ? 'border-zinc-800/50' : 'border-gray-200'}`}>
           <div className="flex items-center justify-between mb-4">
-            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Account Balances</h3>
+            <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Manual Balances</h3>
             {config.balances?.lastUpdated && (
               <span className={`text-[8px] ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                 Updated {new Date(config.balances.lastUpdated).toLocaleDateString()}

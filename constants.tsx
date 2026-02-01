@@ -37,9 +37,16 @@ import {
   Moon,
   Pencil,
   Trash2,
-  X
+  X,
+  // Income category icons
+  Banknote,
+  Laptop,
+  Award,
+  RotateCcw,
+  HelpCircle,
+  Building
 } from 'lucide-react';
-import { Category, ExpenseType, AppConfig, MonthlyBudget, PaymentMethod, CategoryDefinition, CategoryIcon } from './types';
+import { Category, ExpenseType, AppConfig, MonthlyBudget, PaymentMethod, CategoryDefinition, CategoryIcon, IncomeCategory, IncomePaymentMethod } from './types';
 
 // Icon components map for dynamic rendering
 export const ICON_COMPONENTS: Record<CategoryIcon, React.ComponentType<{ className?: string }>> = {
@@ -70,7 +77,8 @@ export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
   { id: 'EAT OUT', name: 'Eat Out', icon: 'Coffee', defaultType: 'WANT' },
   { id: 'WANT', name: 'Want', icon: 'Smile', defaultType: 'WANT' },
   { id: 'SAVE', name: 'Save', icon: 'PiggyBank', defaultType: 'SAVE' },
-  { id: 'DEBT', name: 'Debt', icon: 'CreditCard', defaultType: 'DEBT' }
+  { id: 'DEBT', name: 'Debt', icon: 'CreditCard', defaultType: 'DEBT' },
+  { id: 'FEES', name: 'Fees', icon: 'Briefcase', defaultType: 'NEED' }
 ];
 
 // Helper to get categories array from CategoryDefinition[]
@@ -95,6 +103,35 @@ export const CATEGORIES: Category[] = getCategoryIds(DEFAULT_CATEGORIES);
 export const CATEGORY_TYPES: Record<Category, ExpenseType> = getCategoryTypes(DEFAULT_CATEGORIES);
 
 export const PAYMENT_METHODS: PaymentMethod[] = ['Cash', 'Card', 'Bank'];
+
+// Income categories and their icons
+export const INCOME_CATEGORIES: { id: IncomeCategory; name: string; icon: React.ReactNode }[] = [
+  { id: 'SALARY', name: 'Salary', icon: <Banknote className="w-4 h-4" /> },
+  { id: 'FREELANCE', name: 'Freelance', icon: <Laptop className="w-4 h-4" /> },
+  { id: 'BONUS', name: 'Bonus', icon: <Award className="w-4 h-4" /> },
+  { id: 'REFUND', name: 'Refund', icon: <RotateCcw className="w-4 h-4" /> },
+  { id: 'GIFT', name: 'Gift', icon: <Gift className="w-4 h-4" /> },
+  { id: 'OTHER', name: 'Other', icon: <HelpCircle className="w-4 h-4" /> }
+];
+
+// Income payment methods (no Card - income comes as Cash or Bank transfer)
+export const INCOME_PAYMENT_METHODS: IncomePaymentMethod[] = ['Cash', 'Bank'];
+
+// Transfer direction options for account transfers
+export const TRANSFER_DIRECTIONS: { id: 'BANK_TO_CASH' | 'CASH_TO_BANK'; name: string; description: string }[] = [
+  { id: 'BANK_TO_CASH', name: 'ATM Withdrawal', description: 'Bank → Cash' },
+  { id: 'CASH_TO_BANK', name: 'Bank Deposit', description: 'Cash → Bank' }
+];
+
+// Income category icons map for dynamic rendering
+export const INCOME_CATEGORY_ICONS: Record<IncomeCategory, React.ReactNode> = {
+  SALARY: <Banknote className="w-4 h-4" />,
+  FREELANCE: <Laptop className="w-4 h-4" />,
+  BONUS: <Award className="w-4 h-4" />,
+  REFUND: <RotateCcw className="w-4 h-4" />,
+  GIFT: <Gift className="w-4 h-4" />,
+  OTHER: <HelpCircle className="w-4 h-4" />
+};
 
 // Legacy icon map (use renderCategoryIcon for dynamic categories)
 export const CATEGORY_ICONS: Record<string, React.ReactNode> = DEFAULT_CATEGORIES.reduce((acc, cat) => {
@@ -148,14 +185,16 @@ export const DEFAULT_CONFIG: AppConfig = {
         'EAT OUT': { amount: 36000, type: 'WANT' },
         WANT: { amount: 9000, type: 'WANT' },
         SAVE: { amount: 100000, type: 'SAVE' },
-        DEBT: { amount: 0, type: 'DEBT' }
+        DEBT: { amount: 0, type: 'DEBT' },
+        FEES: { amount: 0, type: 'NEED' }
       }
     }
   },
   balances: {
     cash: 0,
-    bank: 0,
-    lastUpdated: ''
+    accounts: {},
+    lastUpdated: '',
+    bank: 0  // Deprecated, kept for migration
   },
   theme: 'dark'
 };

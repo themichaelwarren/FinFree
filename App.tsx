@@ -82,15 +82,13 @@ const AppContent: React.FC = () => {
           const data = await sheetsApi.fetchAll(user.accessToken, localConfig.spreadsheetId);
           // Prefer categories from dedicated sheet, fall back to legacy JSON in config
           const categoriesFromCloud = data.categories || data.config?.categories || null;
-          // Type assertion for accounts - sheetsApi will be updated to include this
-          const dataWithAccounts = data as typeof data & { accounts?: BankAccount[] };
           const cloudData = {
             config: { ...data.config, categories: categoriesFromCloud } as AppConfig | null,
             expenses: data.expenses,
             budgets: data.budgets,
             income: data.income,
             transfers: data.transfers || [],
-            accounts: dataWithAccounts.accounts || undefined
+            accounts: data.accounts || undefined
           };
           const merged = storage.mergeWithCloud(cloudData);
           storage.saveConfig(merged.config);
@@ -325,23 +323,39 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // Sync accounts to cloud
+  const syncAccountsToCloud = async (accountsToSync: BankAccount[]) => {
+    const syncMode = getSyncMode(config);
+    if (!isOnline || syncMode === 'local') return;
+
+    try {
+      if (syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
+        await sheetsApi.saveAccounts(user.accessToken, config.spreadsheetId, accountsToSync);
+      }
+      // Apps Script mode would need backend support for accounts
+    } catch (error) {
+      console.error('Account sync failed:', error);
+    }
+  };
+
   // Bank Account handlers
   const handleAddAccount = (account: BankAccount) => {
     const updated = storage.saveAccount(account);
     setAccounts(updated);
-    // TODO: Sync accounts to cloud when sheetsApi is updated
+    syncAccountsToCloud(updated);
   };
 
   const handleUpdateAccount = (id: string, updates: Partial<BankAccount>) => {
     const updated = storage.updateAccount(id, updates);
     setAccounts(updated);
-    // TODO: Sync accounts to cloud when sheetsApi is updated
+    syncAccountsToCloud(updated);
   };
 
   const handleDeleteAccount = (id: string): { success: boolean; error?: string } => {
     const result = storage.deleteAccount(id);
     if (result.success) {
       setAccounts(result.accounts);
+      syncAccountsToCloud(result.accounts);
     }
     return { success: result.success, error: result.error };
   };
@@ -349,7 +363,7 @@ const AppContent: React.FC = () => {
   const handleSetDefaultAccount = (id: string) => {
     const updated = storage.setDefaultAccount(id);
     setAccounts(updated);
-    // TODO: Sync accounts to cloud when sheetsApi is updated
+    syncAccountsToCloud(updated);
   };
 
   const handleConfigUpdate = async (newConfig: AppConfig) => {

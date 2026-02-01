@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { AppConfig, BankAccount } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { authService } from '../services/auth';
 import AccountManager from './AccountManager';
 
 interface SettingsProps {
@@ -28,7 +29,8 @@ const Settings: React.FC<SettingsProps> = ({
   onSetDefaultAccount
 }) => {
   const [form, setForm] = useState(config);
-  const [oauthClientId, setOauthClientId] = useState('');
+  // Initialize OAuth client ID from stored value (persisted across sessions)
+  const [oauthClientId, setOauthClientId] = useState(() => authService.getClientId());
   const [spreadsheetInput, setSpreadsheetInput] = useState('');
   const [showLegacy, setShowLegacy] = useState(!!config.sheetsUrl);
 
@@ -99,16 +101,25 @@ const Settings: React.FC<SettingsProps> = ({
             ) : (
               <div className="space-y-3">
                 <div>
-                  <label className={labelClass}>OAuth Client ID</label>
+                  <label className={labelClass}>
+                    OAuth Client ID
+                    {oauthClientId && <span className="ml-2 text-emerald-500">✓ Saved</span>}
+                  </label>
                   <input
                     type="text"
                     value={oauthClientId}
-                    onChange={(e) => setOauthClientId(e.target.value)}
+                    onChange={(e) => {
+                      setOauthClientId(e.target.value);
+                      // Save immediately so it persists
+                      if (e.target.value) {
+                        authService.setClientId(e.target.value);
+                      }
+                    }}
                     placeholder="Your Google Cloud OAuth Client ID"
                     className={inputClass}
                   />
                   <p className={`text-[9px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                    Create one at console.cloud.google.com
+                    Create one at console.cloud.google.com — saved automatically
                   </p>
                 </div>
                 <button onClick={handleSignIn} disabled={isLoading} className={primaryButtonClass}>

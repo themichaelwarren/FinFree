@@ -21,6 +21,11 @@ import {
   Dumbbell,
   Stethoscope,
   GraduationCap,
+  Wifi,
+  Shield,
+  Repeat,
+  Wrench,
+  Car,
   AlertCircle,
   Plus,
   Camera,
@@ -53,7 +58,8 @@ export const ICON_COMPONENTS: Record<CategoryIcon, React.ComponentType<{ classNa
   Home, Zap, Flame, Droplets, Phone,
   Utensils, Bus, ShoppingBag, Smile, PiggyBank,
   CreditCard, Coffee, Gift, Heart, Briefcase,
-  Gamepad2, Shirt, Dumbbell, Stethoscope, GraduationCap
+  Gamepad2, Shirt, Dumbbell, Stethoscope, GraduationCap,
+  Wifi, Shield, Repeat, Wrench, Car
 };
 
 // Available icons for category picker
@@ -61,21 +67,34 @@ export const AVAILABLE_ICONS: CategoryIcon[] = [
   'Home', 'Zap', 'Flame', 'Droplets', 'Phone',
   'Utensils', 'Bus', 'ShoppingBag', 'Smile', 'PiggyBank',
   'CreditCard', 'Coffee', 'Gift', 'Heart', 'Briefcase',
-  'Gamepad2', 'Shirt', 'Dumbbell', 'Stethoscope', 'GraduationCap'
+  'Gamepad2', 'Shirt', 'Dumbbell', 'Stethoscope', 'GraduationCap',
+  'Wifi', 'Shield', 'Repeat', 'Wrench', 'Car'
 ];
 
 // Default categories
 export const DEFAULT_CATEGORIES: CategoryDefinition[] = [
+  // Housing & Utilities
   { id: 'RENT', name: 'Rent', icon: 'Home', defaultType: 'NEED' },
   { id: 'ELECTRIC', name: 'Electric', icon: 'Zap', defaultType: 'NEED' },
   { id: 'GAS', name: 'Gas', icon: 'Flame', defaultType: 'NEED' },
   { id: 'WATER', name: 'Water', icon: 'Droplets', defaultType: 'NEED' },
+  { id: 'INTERNET', name: 'Internet', icon: 'Wifi', defaultType: 'NEED' },
   { id: 'PHONE', name: 'Phone', icon: 'Phone', defaultType: 'NEED' },
+  // Essential Living
   { id: 'FOOD', name: 'Food', icon: 'Utensils', defaultType: 'NEED' },
   { id: 'TRANSPORT', name: 'Transport', icon: 'Bus', defaultType: 'NEED' },
+  { id: 'CAR', name: 'Car', icon: 'Car', defaultType: 'NEED' },
   { id: 'TOILETRIES', name: 'Toiletries', icon: 'ShoppingBag', defaultType: 'NEED' },
+  { id: 'MEDICAL', name: 'Medical', icon: 'Stethoscope', defaultType: 'NEED' },
+  { id: 'INSURANCE', name: 'Insurance', icon: 'Shield', defaultType: 'NEED' },
+  { id: 'HOUSEHOLD', name: 'Household', icon: 'Wrench', defaultType: 'NEED' },
+  // Lifestyle
   { id: 'EAT OUT', name: 'Eat Out', icon: 'Coffee', defaultType: 'WANT' },
+  { id: 'SUBSCRIPTIONS', name: 'Subscriptions', icon: 'Repeat', defaultType: 'WANT' },
+  { id: 'CLOTHING', name: 'Clothing', icon: 'Shirt', defaultType: 'WANT' },
+  { id: 'GIFTS', name: 'Gifts', icon: 'Gift', defaultType: 'WANT' },
   { id: 'WANT', name: 'Want', icon: 'Smile', defaultType: 'WANT' },
+  // Financial
   { id: 'SAVE', name: 'Save', icon: 'PiggyBank', defaultType: 'SAVE' },
   { id: 'DEBT', name: 'Debt', icon: 'CreditCard', defaultType: 'DEBT' },
   { id: 'FEES', name: 'Fees', icon: 'Briefcase', defaultType: 'NEED' }
@@ -178,11 +197,19 @@ export const DEFAULT_CONFIG: AppConfig = {
         ELECTRIC: { amount: 10000, type: 'NEED' },
         GAS: { amount: 0, type: 'NEED' },
         WATER: { amount: 0, type: 'NEED' },
+        INTERNET: { amount: 0, type: 'NEED' },
         PHONE: { amount: 8000, type: 'NEED' },
         FOOD: { amount: 40000, type: 'NEED' },
         TRANSPORT: { amount: 5000, type: 'NEED' },
+        CAR: { amount: 0, type: 'NEED' },
         TOILETRIES: { amount: 4000, type: 'NEED' },
+        MEDICAL: { amount: 0, type: 'NEED' },
+        INSURANCE: { amount: 0, type: 'NEED' },
+        HOUSEHOLD: { amount: 0, type: 'NEED' },
         'EAT OUT': { amount: 36000, type: 'WANT' },
+        SUBSCRIPTIONS: { amount: 0, type: 'WANT' },
+        CLOTHING: { amount: 0, type: 'WANT' },
+        GIFTS: { amount: 0, type: 'WANT' },
         WANT: { amount: 9000, type: 'WANT' },
         SAVE: { amount: 100000, type: 'SAVE' },
         DEBT: { amount: 0, type: 'DEBT' },

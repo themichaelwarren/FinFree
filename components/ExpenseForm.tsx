@@ -18,10 +18,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
   const [category, setCategory] = useState<Category>('');
   const [store, setStore] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [time, setTime] = useState<string>('');  // HH:MM from receipt OCR
   const [notes, setNotes] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash');
   const [selectedAccountId, setSelectedAccountId] = useState<string>('');
   const [isScanning, setIsScanning] = useState(false);
+  const [isFromReceipt, setIsFromReceipt] = useState(false);  // Track if data came from receipt scan
 
   // Get default account for Card/Bank payments
   const defaultAccount = bankAccounts.find(a => a.isDefault) || bankAccounts[0];
@@ -72,7 +74,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
     e.preventDefault();
     if (!isFormValid) return;
 
-    onSave({
+    const expense: Omit<Expense, 'id' | 'timestamp' | 'synced'> = {
       amount: Number(amount),
       category,
       type,
@@ -80,17 +82,26 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
       store: store || 'Unknown Store',
       date,
       notes,
-      source: 'manual'
-    });
+      source: isFromReceipt ? 'receipt' : 'manual'
+    };
+
+    // Include time if available (from receipt scan)
+    if (time && time.match(/^\d{2}:\d{2}$/)) {
+      expense.time = time;
+    }
+
+    onSave(expense);
 
     // Reset form to clear state
     setAmount('');
     setStore('');
     setNotes('');
     setDate('');
+    setTime('');
     setCategory('');
     setPaymentMethod('' as PaymentMethod);
     setSelectedAccountId('');
+    setIsFromReceipt(false);
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -109,7 +120,14 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
         if (result.date && result.date.match(/^\d{4}-\d{2}-\d{2}$/)) {
             setDate(result.date);
         }
+        // Extract time if available (format: HH:MM)
+        if (result.time && result.time.match(/^\d{2}:\d{2}$/)) {
+          setTime(result.time);
+        } else {
+          setTime('');
+        }
         setNotes(result.items.map(i => `${i.name}: ¥${i.price}`).join('\n'));
+        setIsFromReceipt(true);
 
         // Apply AI-suggested category if valid
         if (result.suggestedCategory) {

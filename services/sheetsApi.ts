@@ -26,7 +26,7 @@ export const sheetsApi = {
               startRow: 0,
               startColumn: 0,
               rowData: [{
-                values: ['ID', 'Date', 'Timestamp', 'TransactionType', 'Amount', 'Category', 'ExpenseType', 'PaymentMethod', 'Description', 'Notes', 'Source'].map(v => ({
+                values: ['ID', 'Date', 'Timestamp', 'TransactionType', 'Amount', 'Category', 'ExpenseType', 'PaymentMethod', 'Description', 'Notes', 'Source', 'Deleted'].map(v => ({
                   userEnteredValue: { stringValue: v },
                   userEnteredFormat: { textFormat: { bold: true } }
                 }))
@@ -77,7 +77,7 @@ export const sheetsApi = {
               startRow: 0,
               startColumn: 0,
               rowData: [{
-                values: ['ID', 'Date', 'Timestamp', 'Amount', 'FromAccountId', 'ToAccountId', 'Direction', 'Description', 'Notes'].map(v => ({
+                values: ['ID', 'Date', 'Timestamp', 'Amount', 'FromAccountId', 'ToAccountId', 'Direction', 'Description', 'Notes', 'Deleted'].map(v => ({
                   userEnteredValue: { stringValue: v },
                   userEnteredFormat: { textFormat: { bold: true } }
                 }))
@@ -211,11 +211,12 @@ export const sheetsApi = {
   getExpenses: async (accessToken: string, spreadsheetId: string): Promise<Expense[]> => {
     const expenses: Expense[] = [];
 
-    // Try reading from new Transactions sheet
+    // Try reading from new Transactions sheet (now includes Deleted column at L)
     try {
-      const transactionValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:K');
+      const transactionValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:L');
       transactionValues
         .filter(row => String(row[3]) === 'expense')
+        .filter(row => String(row[11] || '').toLowerCase() !== 'true')  // Filter out deleted
         .forEach(row => {
           expenses.push({
             id: String(row[0]),
@@ -292,9 +293,10 @@ export const sheetsApi = {
         e.paymentMethod || 'Cash',
         e.store || '',  // Description
         e.notes || '',
-        e.source || 'manual'
+        e.source || 'manual',
+        ''  // Deleted (empty = not deleted)
       ]);
-      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transactions!A:K', rows);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transactions!A:L', rows);
     }
   },
 
@@ -303,11 +305,12 @@ export const sheetsApi = {
   getIncome: async (accessToken: string, spreadsheetId: string): Promise<Income[]> => {
     const incomeList: Income[] = [];
 
-    // Try reading from new Transactions sheet
+    // Try reading from new Transactions sheet (now includes Deleted column at L)
     try {
-      const transactionValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:K');
+      const transactionValues = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:L');
       transactionValues
         .filter(row => String(row[3]) === 'income')
+        .filter(row => String(row[11] || '').toLowerCase() !== 'true')  // Filter out deleted
         .forEach(row => {
           incomeList.push({
             id: String(row[0]),
@@ -381,9 +384,10 @@ export const sheetsApi = {
         i.paymentMethod || 'Bank',
         i.description || '',
         i.notes || '',
-        ''  // Source (not used for income)
+        '',  // Source (not used for income)
+        ''  // Deleted (empty = not deleted)
       ]);
-      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transactions!A:K', rows);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transactions!A:L', rows);
     }
   },
 
@@ -410,8 +414,8 @@ export const sheetsApi = {
 
         if (response.ok) {
           // Add header row
-          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Transactions!A1:K1', [
-            ['ID', 'Date', 'Timestamp', 'TransactionType', 'Amount', 'Category', 'ExpenseType', 'PaymentMethod', 'Description', 'Notes', 'Source']
+          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Transactions!A1:L1', [
+            ['ID', 'Date', 'Timestamp', 'TransactionType', 'Amount', 'Category', 'ExpenseType', 'PaymentMethod', 'Description', 'Notes', 'Source', 'Deleted']
           ]);
         }
       }
@@ -478,6 +482,12 @@ export const sheetsApi = {
   // Get categories from dedicated sheet
   getCategories: async (accessToken: string, spreadsheetId: string): Promise<CategoryDefinition[] | null> => {
     try {
+      // Check if Categories sheet exists first to avoid 400 error
+      const spreadsheet = await sheetsApi.getSpreadsheet(accessToken, spreadsheetId);
+      if (!spreadsheet.sheets.includes('Categories')) {
+        return null;
+      }
+
       const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Categories!A2:D');
       if (!values || values.length === 0) return null;
 
@@ -569,46 +579,54 @@ export const sheetsApi = {
     await sheetsApi.updateValues(accessToken, spreadsheetId, 'Config!A2:B', rows);
   },
 
-  // Get all transfers
+  // Get all transfers (now includes Deleted column at J)
   getTransfers: async (accessToken: string, spreadsheetId: string): Promise<Transfer[]> => {
     try {
-      const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transfers!A2:I');
+      // Check if Transfers sheet exists first to avoid 400 error
+      const spreadsheet = await sheetsApi.getSpreadsheet(accessToken, spreadsheetId);
+      if (!spreadsheet.sheets.includes('Transfers')) {
+        return [];
+      }
 
-      return values.map(row => {
-        // Handle both old format (7 cols) and new format (9 cols)
-        const hasNewFormat = row.length >= 9 || (row[4] && !['BANK_TO_CASH', 'CASH_TO_BANK'].includes(String(row[4])));
+      const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transfers!A2:J');
 
-        if (hasNewFormat) {
-          // New format: ID, Date, Timestamp, Amount, FromAccountId, ToAccountId, Direction, Description, Notes
-          return {
-            id: String(row[0]),
-            date: String(row[1]),
-            timestamp: String(row[2]),
-            amount: Number(row[3]),
-            fromAccountId: String(row[4] || 'cash'),
-            toAccountId: String(row[5] || 'bank_default'),
-            direction: (String(row[6] || '') || undefined) as Transfer['direction'],
-            description: String(row[7] || ''),
-            notes: String(row[8] || ''),
-            synced: true
-          };
-        } else {
-          // Old format: ID, Date, Timestamp, Amount, Direction, Description, Notes
-          const direction = String(row[4]) as Transfer['direction'];
-          return {
-            id: String(row[0]),
-            date: String(row[1]),
-            timestamp: String(row[2]),
-            amount: Number(row[3]),
-            fromAccountId: direction === 'BANK_TO_CASH' ? 'bank_default' : 'cash',
-            toAccountId: direction === 'BANK_TO_CASH' ? 'cash' : 'bank_default',
-            direction,
-            description: String(row[5] || ''),
-            notes: String(row[6] || ''),
-            synced: true
-          };
-        }
-      });
+      return values
+        .filter(row => String(row[9] || '').toLowerCase() !== 'true')  // Filter out deleted
+        .map(row => {
+          // Handle both old format (7 cols) and new format (9+ cols)
+          const hasNewFormat = row.length >= 9 || (row[4] && !['BANK_TO_CASH', 'CASH_TO_BANK'].includes(String(row[4])));
+
+          if (hasNewFormat) {
+            // New format: ID, Date, Timestamp, Amount, FromAccountId, ToAccountId, Direction, Description, Notes, Deleted
+            return {
+              id: String(row[0]),
+              date: String(row[1]),
+              timestamp: String(row[2]),
+              amount: Number(row[3]),
+              fromAccountId: String(row[4] || 'cash'),
+              toAccountId: String(row[5] || 'bank_default'),
+              direction: (String(row[6] || '') || undefined) as Transfer['direction'],
+              description: String(row[7] || ''),
+              notes: String(row[8] || ''),
+              synced: true
+            };
+          } else {
+            // Old format: ID, Date, Timestamp, Amount, Direction, Description, Notes
+            const direction = String(row[4]) as Transfer['direction'];
+            return {
+              id: String(row[0]),
+              date: String(row[1]),
+              timestamp: String(row[2]),
+              amount: Number(row[3]),
+              fromAccountId: direction === 'BANK_TO_CASH' ? 'bank_default' : 'cash',
+              toAccountId: direction === 'BANK_TO_CASH' ? 'cash' : 'bank_default',
+              direction,
+              description: String(row[5] || ''),
+              notes: String(row[6] || ''),
+              synced: true
+            };
+          }
+        });
     } catch {
       // Transfers sheet might not exist in older spreadsheets
       return [];
@@ -628,7 +646,7 @@ export const sheetsApi = {
 
     const newTransfers = transfers.filter(t => !existingIds.has(t.id));
 
-    // Append new transfers with new format (includes fromAccountId, toAccountId)
+    // Append new transfers with new format (includes fromAccountId, toAccountId, Deleted)
     if (newTransfers.length > 0) {
       const rows = newTransfers.map(t => [
         t.id,
@@ -639,9 +657,10 @@ export const sheetsApi = {
         t.toAccountId || 'bank_default',
         t.direction || '',
         t.description || '',
-        t.notes || ''
+        t.notes || '',
+        ''  // Deleted (empty = not deleted)
       ]);
-      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transfers!A:I', rows);
+      await sheetsApi.appendValues(accessToken, spreadsheetId, 'Transfers!A:J', rows);
     }
   },
 
@@ -667,9 +686,9 @@ export const sheetsApi = {
         });
 
         if (response.ok) {
-          // Add header row with new format
-          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Transfers!A1:I1', [
-            ['ID', 'Date', 'Timestamp', 'Amount', 'FromAccountId', 'ToAccountId', 'Direction', 'Description', 'Notes']
+          // Add header row with new format (includes Deleted)
+          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Transfers!A1:J1', [
+            ['ID', 'Date', 'Timestamp', 'Amount', 'FromAccountId', 'ToAccountId', 'Direction', 'Description', 'Notes', 'Deleted']
           ]);
         }
       }
@@ -681,6 +700,12 @@ export const sheetsApi = {
   // Get all bank accounts
   getAccounts: async (accessToken: string, spreadsheetId: string): Promise<BankAccount[]> => {
     try {
+      // Check if Accounts sheet exists first to avoid 400 error
+      const spreadsheet = await sheetsApi.getSpreadsheet(accessToken, spreadsheetId);
+      if (!spreadsheet.sheets.includes('Accounts')) {
+        return [];
+      }
+
       const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Accounts!A2:D');
 
       return values.map(row => ({
@@ -744,6 +769,40 @@ export const sheetsApi = {
       }
     } catch {
       // Ignore errors - sheet might already exist
+    }
+  },
+
+  // Mark a transaction as deleted by ID (sets Deleted column to 'true')
+  markTransactionAsDeleted: async (
+    accessToken: string,
+    spreadsheetId: string,
+    id: string,
+    type: 'expense' | 'income' | 'transfer'
+  ): Promise<boolean> => {
+    try {
+      if (type === 'transfer') {
+        // Transfers are in separate sheet
+        const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transfers!A2:A');
+        const rowIndex = values.findIndex(row => String(row[0]) === id);
+        if (rowIndex === -1) return false;
+
+        // Row index is 0-based, but sheet rows start at 2 (row 1 is header)
+        const sheetRow = rowIndex + 2;
+        await sheetsApi.updateValues(accessToken, spreadsheetId, `Transfers!J${sheetRow}`, [['true']]);
+        return true;
+      } else {
+        // Expenses and income are in Transactions sheet
+        const values = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:A');
+        const rowIndex = values.findIndex(row => String(row[0]) === id);
+        if (rowIndex === -1) return false;
+
+        const sheetRow = rowIndex + 2;
+        await sheetsApi.updateValues(accessToken, spreadsheetId, `Transactions!L${sheetRow}`, [['true']]);
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to mark as deleted:', error);
+      return false;
     }
   },
 

@@ -81,6 +81,21 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({
   const monthlyIncome = calculations.getMonthlyIncome(income, viewMonth);
   const netCashFlow = calculations.getNetCashFlow(income, expenses, viewMonth);
 
+  // Memoize balance items to avoid key warnings from inline array creation
+  const balanceItems = useMemo(() => {
+    const items = [
+      { id: 'cash', name: 'Cash', balance: runningBalance.cash, isDefault: false }
+    ];
+    if (bankAccounts.length === 0) {
+      items.push({ id: 'bank-legacy', name: 'Bank', balance: runningBalance.bank || 0, isDefault: false });
+    } else {
+      bankAccounts.forEach(acc => {
+        items.push({ id: acc.id, name: acc.name, balance: runningBalance.accounts[acc.id] || 0, isDefault: acc.isDefault });
+      });
+    }
+    return items;
+  }, [runningBalance, bankAccounts]);
+
   return (
     <div className={`rounded-3xl p-6 mb-8 shadow-2xl overflow-hidden relative group ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
       {/* Background Month Watermark */}
@@ -103,28 +118,17 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({
         </div>
 
         <div className={`grid gap-4 mb-3 ${bankAccounts.length > 1 ? 'grid-cols-3' : 'grid-cols-2'}`}>
-          <div>
-            <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Cash</p>
-            <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{runningBalance.cash.toLocaleString()}</p>
-          </div>
-          {bankAccounts.length === 0 ? (
-            <div>
-              <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Bank</p>
-              <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{(runningBalance.bank || 0).toLocaleString()}</p>
+          {balanceItems.map(item => (
+            <div key={item.id}>
+              <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                {item.name}
+                {item.isDefault && <span className="text-amber-500">*</span>}
+              </p>
+              <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                ¥{item.balance.toLocaleString()}
+              </p>
             </div>
-          ) : (
-            bankAccounts.map(account => (
-              <div key={account.id}>
-                <p className={`text-[9px] font-bold uppercase tracking-widest mb-1 flex items-center gap-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                  {account.name}
-                  {account.isDefault && <span className="text-amber-500">*</span>}
-                </p>
-                <p className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-                  ¥{(runningBalance.accounts[account.id] || 0).toLocaleString()}
-                </p>
-              </div>
-            ))
-          )}
+          ))}
         </div>
 
         <div className={`pt-2 border-t ${isDark ? 'border-zinc-800/50' : 'border-gray-200'}`}>
@@ -344,37 +348,40 @@ const BudgetSummary: React.FC<BudgetSummaryProps> = ({
 
       {/* Category Breakdown vs Budget */}
       <div className={`space-y-5 pt-6 border-t relative z-10 ${isDark ? 'border-zinc-800/50' : 'border-gray-200'}`}>
-        {CATEGORIES.map(cat => {
-          const spent = monthlyExpenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
-          const catBudget = budget.categories[cat]?.amount || 0;
-          const percent = catBudget > 0 ? Math.min(Math.round((spent / catBudget) * 100), 100) : 0;
+        {CATEGORIES
+          .map(cat => {
+            const spent = monthlyExpenses.filter(e => e.category === cat).reduce((sum, e) => sum + e.amount, 0);
+            const catBudget = budget.categories[cat]?.amount || 0;
+            return { cat, spent, catBudget };
+          })
+          .filter(({ spent, catBudget }) => spent > 0 || catBudget > 0)
+          .map(({ cat, spent, catBudget }) => {
+            const percent = catBudget > 0 ? Math.min(Math.round((spent / catBudget) * 100), 100) : 0;
 
-          if (spent === 0 && catBudget === 0) return null;
-
-          return (
-            <div key={cat} className="space-y-2">
-              <div className="flex justify-between items-baseline">
-                <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{cat}</span>
-                <div className="text-right">
-                  <span className={`text-xs font-black tracking-tight ${spent > catBudget && catBudget > 0 ? 'text-rose-500' : isDark ? 'text-zinc-100' : 'text-gray-900'}`}>
-                    ¥{spent.toLocaleString()}
-                  </span>
-                  {catBudget > 0 && (
-                    <span className={`text-[9px] font-bold ml-2 tracking-widest ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                      / ¥{catBudget.toLocaleString()}
+            return (
+              <div key={cat} className="space-y-2">
+                <div className="flex justify-between items-baseline">
+                  <span className={`text-[10px] font-black uppercase tracking-widest ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{cat}</span>
+                  <div className="text-right">
+                    <span className={`text-xs font-black tracking-tight ${spent > catBudget && catBudget > 0 ? 'text-rose-500' : isDark ? 'text-zinc-100' : 'text-gray-900'}`}>
+                      ¥{spent.toLocaleString()}
                     </span>
-                  )}
+                    {catBudget > 0 && (
+                      <span className={`text-[9px] font-bold ml-2 tracking-widest ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                        / ¥{catBudget.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className={`h-1 w-full rounded-full overflow-hidden ${isDark ? 'bg-zinc-900/50 border border-zinc-800/30' : 'bg-gray-100 border border-gray-200'}`}>
+                  <div
+                    className={`h-full transition-all duration-1000 ${spent > catBudget && catBudget > 0 ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]' : isDark ? 'bg-zinc-700' : 'bg-gray-400'}`}
+                    style={{ width: `${percent}%` }}
+                  />
                 </div>
               </div>
-              <div className={`h-1 w-full rounded-full overflow-hidden ${isDark ? 'bg-zinc-900/50 border border-zinc-800/30' : 'bg-gray-100 border border-gray-200'}`}>
-                <div
-                  className={`h-full transition-all duration-1000 ${spent > catBudget && catBudget > 0 ? 'bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.3)]' : isDark ? 'bg-zinc-700' : 'bg-gray-400'}`}
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
 
       {/* Legacy Account Balances (manual entry) - only show if no starting balance set */}

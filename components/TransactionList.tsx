@@ -1,17 +1,19 @@
 
 import React, { useState, useMemo } from 'react';
-import { Expense, ExpenseType, PaymentMethod, CategoryDefinition, Income, IncomeCategory, IncomePaymentMethod, Transfer, TransferDirection } from '../types';
+import { Expense, ExpenseType, PaymentMethod, CategoryDefinition, Income, IncomeCategory, IncomePaymentMethod, Transfer, TransferDirection, BankAccount } from '../types';
 import { ICONS, DEFAULT_CATEGORIES, PAYMENT_METHODS, renderCategoryIcon, INCOME_CATEGORIES, INCOME_PAYMENT_METHODS, TRANSFER_DIRECTIONS } from '../constants';
 import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight } from 'lucide-react';
 
 type GroupBy = 'day' | 'category' | 'none';
 type TransactionFilter = 'ALL' | 'EXPENSES' | 'INCOME' | 'TRANSFERS';
+type DuplicateFilter = 'ALL' | 'DUPLICATES';
 
 // Unified transaction type for combined list
 interface Transaction {
   id: string;
   type: 'expense' | 'income' | 'transfer';
   date: string;
+  time?: string; // HH:MM format for chronological sorting
   timestamp: string;
   amount: number;
   category: string;
@@ -35,6 +37,7 @@ interface TransactionListProps {
   onEditIncome?: (id: string, updates: Partial<Income>) => void;
   onEditTransfer?: (id: string, updates: Partial<Transfer>) => void;
   categories?: CategoryDefinition[];
+  bankAccounts?: BankAccount[];
   isDark?: boolean;
   limit?: number; // Optional limit for preview mode
 }
@@ -50,6 +53,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
   onEditIncome,
   onEditTransfer,
   categories = DEFAULT_CATEGORIES,
+  bankAccounts = [],
   isDark = true,
   limit
 }) => {
@@ -57,6 +61,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<ExpenseType | 'ALL'>('ALL');
   const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('ALL');
+  const [monthFilter, setMonthFilter] = useState<string>('ALL'); // 'ALL' or 'YYYY-MM'
+  const [duplicateFilter, setDuplicateFilter] = useState<DuplicateFilter>('ALL');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<Expense> | Partial<Income> | Partial<Transfer>>({});
@@ -106,6 +112,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
       id: e.id,
       type: 'expense' as const,
       date: e.date,
+      time: e.time,  // Include time for chronological sorting
       timestamp: e.timestamp,
       amount: e.amount,
       category: e.category,
@@ -147,9 +154,60 @@ const TransactionList: React.FC<TransactionListProps> = ({
     return [...expenseTransactions, ...incomeTransactions, ...transferTransactions];
   }, [expenses, income, transfers]);
 
+  // Get available months from all transactions (sorted newest first)
+  const availableMonths = useMemo(() => {
+    const monthSet = new Set<string>();
+    allTransactions.forEach(t => {
+      const month = t.date.slice(0, 7); // Extract YYYY-MM
+      monthSet.add(month);
+    });
+    return Array.from(monthSet).sort((a, b) => b.localeCompare(a)); // Newest first
+  }, [allTransactions]);
+
+  // Format month for display
+  const formatMonth = (monthKey: string) => {
+    const [year, month] = monthKey.split('-');
+    const date = new Date(parseInt(year), parseInt(month) - 1);
+    return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date);
+  };
+
+  // Detect potential duplicates (same amount + date + category, excluding transfers)
+  const duplicateIds = useMemo(() => {
+    const duplicates = new Set<string>();
+
+    // Only check expenses and income for duplicates (transfers are less likely to be duplicates)
+    const checkableTransactions = allTransactions.filter(t => t.type !== 'transfer');
+
+    // Group by key: amount + date + category
+    const groups = new Map<string, Transaction[]>();
+    checkableTransactions.forEach(t => {
+      const key = `${t.amount}-${t.date}-${t.category}-${t.type}`;
+      if (!groups.has(key)) {
+        groups.set(key, []);
+      }
+      groups.get(key)!.push(t);
+    });
+
+    // Mark all transactions in groups with more than 1 member as duplicates
+    groups.forEach(txns => {
+      if (txns.length > 1) {
+        txns.forEach(t => duplicates.add(t.id));
+      }
+    });
+
+    return duplicates;
+  }, [allTransactions]);
+
+  const duplicateCount = duplicateIds.size;
+
   // Filter and sort transactions
   const filteredTransactions = useMemo(() => {
     let result = [...allTransactions];
+
+    // Apply month filter
+    if (monthFilter !== 'ALL') {
+      result = result.filter(t => t.date.startsWith(monthFilter));
+    }
 
     // Apply transaction type filter (expenses vs income vs transfers)
     if (transactionFilter === 'EXPENSES') {
@@ -175,8 +233,27 @@ const TransactionList: React.FC<TransactionListProps> = ({
       result = result.filter(t => t.type === 'income' || t.expenseType === typeFilter);
     }
 
-    // Sort by date (newest first)
-    result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Apply duplicate filter
+    if (duplicateFilter === 'DUPLICATES') {
+      result = result.filter(t => duplicateIds.has(t.id));
+    }
+
+    // Sort by date (newest first), then by time if available
+    result.sort((a, b) => {
+      const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
+      if (dateCompare !== 0) return dateCompare;
+
+      // Same date: sort by time if available (newest first)
+      if (a.time && b.time) {
+        return b.time.localeCompare(a.time);
+      }
+      // Transactions with time come before those without
+      if (a.time && !b.time) return -1;
+      if (!a.time && b.time) return 1;
+
+      // Fall back to timestamp (creation time)
+      return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+    });
 
     // Apply limit if specified
     if (limit) {
@@ -184,7 +261,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
     }
 
     return result;
-  }, [allTransactions, searchQuery, typeFilter, transactionFilter, limit]);
+  }, [allTransactions, searchQuery, typeFilter, transactionFilter, monthFilter, duplicateFilter, duplicateIds, limit]);
 
   // Group transactions
   const groupedTransactions = useMemo(() => {
@@ -366,6 +443,19 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 />
                 <ICONS.History className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
               </div>
+              {/* Month Filter */}
+              {availableMonths.length > 1 && (
+                <select
+                  value={monthFilter}
+                  onChange={(e) => setMonthFilter(e.target.value)}
+                  className={`rounded-xl py-2.5 px-3 text-sm font-medium outline-none appearance-none cursor-pointer ${isDark ? 'bg-zinc-900 text-white border border-zinc-800' : 'bg-gray-100 text-gray-900 border border-gray-200'}`}
+                >
+                  <option value="ALL">All Time</option>
+                  {availableMonths.map(month => (
+                    <option key={month} value={month}>{formatMonth(month)}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {/* Type Filter Chips (only show when viewing expenses or all) */}
@@ -386,6 +476,19 @@ const TransactionList: React.FC<TransactionListProps> = ({
                     {t}
                   </button>
                 ))}
+                {/* Duplicate Filter */}
+                {duplicateCount > 0 && (
+                  <button
+                    onClick={() => setDuplicateFilter(duplicateFilter === 'ALL' ? 'DUPLICATES' : 'ALL')}
+                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                      duplicateFilter === 'DUPLICATES'
+                        ? 'bg-orange-500 text-white border border-orange-500'
+                        : isDark ? 'bg-orange-500/10 text-orange-500 border border-orange-500/30 hover:bg-orange-500/20' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'
+                    }`}
+                  >
+                    ⚠️ {duplicateCount} Dupes
+                  </button>
+                )}
               </div>
             )}
 
@@ -410,6 +513,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 </div>
               </div>
               <div className={`text-[10px] font-bold whitespace-nowrap ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+                {monthFilter !== 'ALL' && <span className="text-blue-400">{formatMonth(monthFilter)} • </span>}
                 {filteredTransactions.length} entries
                 {transactionFilter === 'ALL' && income.length > 0 && (
                   <span className={totalFiltered >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
@@ -518,6 +622,11 @@ const TransactionList: React.FC<TransactionListProps> = ({
                               ) : transaction.expenseType && (
                                 <span className={`shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${getTypeColor(transaction.expenseType)}`}>
                                   {transaction.expenseType}
+                                </span>
+                              )}
+                              {duplicateIds.has(transaction.id) && (
+                                <span className="shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border text-orange-500 bg-orange-500/10 border-orange-500/20" title="Potential duplicate">
+                                  ⚠️ DUPE
                                 </span>
                               )}
                             </div>
@@ -660,13 +769,37 @@ const TransactionList: React.FC<TransactionListProps> = ({
                                       className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
                                     >
                                       {editingType === 'expense' ? (
-                                        PAYMENT_METHODS.map(m => (
-                                          <option key={m} value={m}>{m}</option>
-                                        ))
+                                        <>
+                                          <option value="Cash">Cash</option>
+                                          {bankAccounts.length > 0 ? (
+                                            <>
+                                              <option value="Card">Card (Default Bank)</option>
+                                              {bankAccounts.map(acc => (
+                                                <option key={acc.id} value={`Card:${acc.id}`}>
+                                                  Card: {acc.name}{acc.isDefault ? ' ★' : ''}
+                                                </option>
+                                              ))}
+                                            </>
+                                          ) : (
+                                            <>
+                                              <option value="Card">Card</option>
+                                              <option value="Bank">Bank</option>
+                                            </>
+                                          )}
+                                        </>
                                       ) : (
-                                        INCOME_PAYMENT_METHODS.map(m => (
-                                          <option key={m} value={m}>{m}</option>
-                                        ))
+                                        <>
+                                          <option value="Cash">Cash</option>
+                                          {bankAccounts.length > 0 ? (
+                                            bankAccounts.map(acc => (
+                                              <option key={acc.id} value={acc.id}>
+                                                {acc.name}{acc.isDefault ? ' ★' : ''}
+                                              </option>
+                                            ))
+                                          ) : (
+                                            <option value="Bank">Bank</option>
+                                          )}
+                                        </>
                                       )}
                                     </select>
                                   </div>
@@ -700,11 +833,12 @@ const TransactionList: React.FC<TransactionListProps> = ({
                           ) : (
                             /* View Details */
                             <div className="p-4 space-y-3">
-                              {/* Full Date */}
+                              {/* Full Date & Time */}
                               <div className="flex items-center gap-2">
                                 <ICONS.Calendar className={`w-3.5 h-3.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
                                 <span className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-gray-600'}`}>
                                   {formatDateFull(transaction.date)}
+                                  {transaction.time && ` at ${transaction.time}`}
                                 </span>
                               </div>
 

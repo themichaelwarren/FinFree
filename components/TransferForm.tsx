@@ -4,7 +4,7 @@ import { Transfer, TransferDirection, BankAccount } from '../types';
 import { ArrowRight } from 'lucide-react';
 
 interface TransferFormProps {
-  onSave: (transfer: Omit<Transfer, 'id' | 'timestamp' | 'synced'>) => void;
+  onSave: (transfer: Omit<Transfer, 'id' | 'timestamp' | 'synced'>, fee?: number) => void;
   isDark?: boolean;
   bankAccounts?: BankAccount[];
 }
@@ -16,6 +16,8 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
+  const [showFee, setShowFee] = useState(false);
+  const [fee, setFee] = useState<string>('');
 
   // All accounts including Cash
   const allAccounts = useMemo(() => [
@@ -55,6 +57,8 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
     e.preventDefault();
     if (!isFormValid) return;
 
+    const feeAmount = showFee && fee && !isNaN(Number(fee)) ? Number(fee) : undefined;
+
     onSave({
       amount: Number(amount),
       fromAccountId,
@@ -63,7 +67,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
       date,
       notes,
       direction: getLegacyDirection()
-    });
+    }, feeAmount);
 
     // Reset form
     setAmount('');
@@ -72,6 +76,8 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
     setDescription('');
     setDate(new Date().toISOString().split('T')[0]);
     setNotes('');
+    setShowFee(false);
+    setFee('');
   };
 
   // Quick preset for ATM Withdrawal
@@ -191,6 +197,41 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
               className={`block w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
             />
           </div>
+        </div>
+
+        {/* Transfer Fee Toggle */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowFee(!showFee)}
+            className={`flex items-center gap-2 text-xs font-medium transition-colors ${isDark ? 'text-zinc-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+          >
+            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+              showFee
+                ? isDark ? 'bg-blue-600 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white'
+                : isDark ? 'border-zinc-600' : 'border-gray-400'
+            }`}>
+              {showFee && '✓'}
+            </span>
+            Include transfer fee (ATM fee, wire fee, etc.)
+          </button>
+
+          {showFee && (
+            <div className="mt-3">
+              <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Fee Amount (¥)</label>
+              <input
+                type="number"
+                inputMode="numeric"
+                value={fee}
+                onChange={(e) => setFee(e.target.value)}
+                placeholder="0"
+                className={`w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10 placeholder:text-zinc-600' : 'bg-gray-100 text-gray-900 focus:ring-gray-300 placeholder:text-gray-400'}`}
+              />
+              <p className={`text-[10px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                Will be recorded as a Fees expense
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Description */}

@@ -36,9 +36,10 @@ export async function extractReceiptData(
       ).join('\n')}\n\nBased on the store name and items, suggest the most appropriate category ID from this list.`
     : '';
 
-  const prompt = `Extract from this Japanese receipt: store name, date (format YYYY-MM-DD), total amount (税込 total if shown), and list items with prices if legible.${categoryContext}
+  const prompt = `Extract from this Japanese receipt: store name, date (format YYYY-MM-DD), time (format HH:MM, 24-hour), total amount (税込 total if shown), and list items with prices if legible.${categoryContext}
 
-Return JSON with: store, date, total, items [{name, price}], confidence (high/medium/low), suggestedCategory (category ID), suggestedType (NEED/WANT/SAVE based on the purchase).
+Return JSON with: store, date, time (if visible on receipt), total, items [{name, price}], confidence (high/medium/low), suggestedCategory (category ID), suggestedType (NEED/WANT/SAVE based on the purchase).
+Time is often printed near the top of Japanese receipts, often after the date or near the register/transaction number.
 
 Category selection tips:
 - Grocery stores, supermarkets (イオン, ライフ, OK, 業務スーパー, etc.) → FOOD
@@ -69,6 +70,7 @@ Category selection tips:
         properties: {
           store: { type: Type.STRING },
           date: { type: Type.STRING },
+          time: { type: Type.STRING },  // HH:MM format
           total: { type: Type.NUMBER },
           items: {
             type: Type.ARRAY,

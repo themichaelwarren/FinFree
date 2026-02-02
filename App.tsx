@@ -39,8 +39,9 @@ const AppContent: React.FC = () => {
 
   // Initial load: load local data and set up event listeners
   useEffect(() => {
-    // Run migration for multi-account support
+    // Run migrations
     storage.migrateToMultiAccount();
+    storage.migrateCategories();
 
     const localConfig = storage.getConfig();
     const localExpenses = storage.getExpenses();
@@ -253,17 +254,29 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleDeleteExpense = (id: string) => {
+  const handleDeleteExpense = async (id: string) => {
     if (confirm('Delete this transaction?')) {
       const updated = storage.deleteExpense(id);
       setExpenses(updated);
+
+      // Mark as deleted in Google Sheets
+      const syncMode = getSyncMode(config);
+      if (isOnline && syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
+        await sheetsApi.markTransactionAsDeleted(user.accessToken, config.spreadsheetId, id, 'expense');
+      }
     }
   };
 
-  const handleDeleteIncome = (id: string) => {
+  const handleDeleteIncome = async (id: string) => {
     if (confirm('Delete this income entry?')) {
       const updated = storage.deleteIncome(id);
       setIncome(updated);
+
+      // Mark as deleted in Google Sheets
+      const syncMode = getSyncMode(config);
+      if (isOnline && syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
+        await sheetsApi.markTransactionAsDeleted(user.accessToken, config.spreadsheetId, id, 'income');
+      }
     }
   };
 
@@ -289,7 +302,7 @@ const AppContent: React.FC = () => {
     }
   };
 
-  const handleSaveTransfer = (newTransferData: Omit<Transfer, 'id' | 'timestamp' | 'synced'>) => {
+  const handleSaveTransfer = (newTransferData: Omit<Transfer, 'id' | 'timestamp' | 'synced'>, fee?: number) => {
     const newTransfer: Transfer = {
       ...newTransferData,
       id: crypto.randomUUID(),
@@ -300,15 +313,44 @@ const AppContent: React.FC = () => {
     const updated = storage.saveTransfer(newTransfer);
     setTransfers(updated);
 
+    // If a fee was specified, create a FEES expense
+    if (fee && fee > 0) {
+      // Determine payment method based on source account
+      const paymentMethod = newTransferData.fromAccountId === 'cash' ? 'Cash' as const : 'Card' as const;
+
+      const feeExpense: Expense = {
+        id: crypto.randomUUID(),
+        timestamp: new Date().toISOString(),
+        date: newTransferData.date,
+        amount: fee,
+        category: 'FEES',
+        type: 'NEED',
+        paymentMethod,
+        store: newTransferData.description || 'Transfer Fee',
+        notes: `Fee for transfer: ${newTransferData.description || 'Transfer'}`,
+        source: 'manual',
+        synced: false
+      };
+
+      const updatedExpenses = storage.saveExpense(feeExpense);
+      setExpenses(updatedExpenses);
+    }
+
     if (isOnline) {
       handleSync();
     }
   };
 
-  const handleDeleteTransfer = (id: string) => {
+  const handleDeleteTransfer = async (id: string) => {
     if (confirm('Delete this transfer?')) {
       const updated = storage.deleteTransfer(id);
       setTransfers(updated);
+
+      // Mark as deleted in Google Sheets
+      const syncMode = getSyncMode(config);
+      if (isOnline && syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
+        await sheetsApi.markTransactionAsDeleted(user.accessToken, config.spreadsheetId, id, 'transfer');
+      }
     }
   };
 
@@ -518,6 +560,7 @@ const AppContent: React.FC = () => {
               onEditIncome={handleUpdateIncome}
               onEditTransfer={handleUpdateTransfer}
               categories={config.categories}
+              bankAccounts={accounts}
               isDark={isDark}
             />
           </div>

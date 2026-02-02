@@ -10,7 +10,8 @@ export type CategoryIcon =
   | 'Home' | 'Zap' | 'Flame' | 'Droplets' | 'Phone'
   | 'Utensils' | 'Bus' | 'ShoppingBag' | 'Smile' | 'PiggyBank'
   | 'CreditCard' | 'Coffee' | 'Gift' | 'Heart' | 'Briefcase'
-  | 'Gamepad2' | 'Shirt' | 'Dumbbell' | 'Stethoscope' | 'GraduationCap';
+  | 'Gamepad2' | 'Shirt' | 'Dumbbell' | 'Stethoscope' | 'GraduationCap'
+  | 'Wifi' | 'Shield' | 'Repeat' | 'Wrench' | 'Car';
 
 // Category definition for customizable categories
 export interface CategoryDefinition {
@@ -27,6 +28,7 @@ export interface Expense {
   id: string;
   timestamp: string;
   date: string;
+  time?: string;  // HH:MM format from receipt, for chronological sorting
   amount: number;
   category: Category;
   type: ExpenseType;
@@ -138,6 +140,7 @@ export interface ReceiptItem {
 export interface ReceiptExtraction {
   store: string;
   date: string;
+  time?: string;  // HH:MM format extracted from receipt
   total: number;
   items: ReceiptItem[];
   confidence: 'high' | 'medium' | 'low';

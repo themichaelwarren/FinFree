@@ -1,6 +1,6 @@
 
-import { Expense, AppConfig, MonthlyBudget, Income, Transfer, BankAccount, AccountBalances, StartingBalance } from "../types";
-import { DEFAULT_CONFIG } from "../constants";
+import { Expense, AppConfig, MonthlyBudget, Income, Transfer, BankAccount, AccountBalances, StartingBalance, CategoryDefinition } from "../types";
+import { DEFAULT_CONFIG, DEFAULT_CATEGORIES } from "../constants";
 
 const STORAGE_KEYS = {
   EXPENSES: 'finfree_expenses',
@@ -296,11 +296,47 @@ export const storage = {
       localStorage.setItem(STORAGE_KEYS.TRANSFERS, JSON.stringify(migratedTransfers));
     }
 
-    // 4. Mark migration complete
+    // 4. Mark version 2 complete
+    migration.version = 2;
     localStorage.setItem(STORAGE_KEYS.MIGRATION, JSON.stringify({
-      version: 2,
+      ...migration,
       migratedAt: new Date().toISOString()
     }));
+  },
+
+  // Migration: Always ensure all DEFAULT_CATEGORIES exist in user's config
+  // This runs every time to catch any newly added categories
+  migrateCategories: (): void => {
+    const configData = localStorage.getItem(STORAGE_KEYS.CONFIG);
+    if (!configData) return; // No config yet, will use defaults
+
+    const config = JSON.parse(configData);
+    const existingCategories: CategoryDefinition[] = config.categories || [];
+    const existingIds = new Set(existingCategories.map((c: CategoryDefinition) => c.id));
+
+    // Add any categories from DEFAULT_CATEGORIES that don't exist yet
+    const newCategories = DEFAULT_CATEGORIES.filter(c => !existingIds.has(c.id));
+
+    if (newCategories.length > 0) {
+      console.log(`Adding ${newCategories.length} new categories:`, newCategories.map(c => c.name));
+      config.categories = [...existingCategories, ...newCategories];
+
+      // Also add budget entries for new categories in all existing budgets
+      if (config.budgets) {
+        for (const monthKey of Object.keys(config.budgets)) {
+          const budget = config.budgets[monthKey];
+          if (budget.categories) {
+            for (const cat of newCategories) {
+              if (!budget.categories[cat.id]) {
+                budget.categories[cat.id] = { amount: 0, type: cat.defaultType };
+              }
+            }
+          }
+        }
+      }
+
+      localStorage.setItem(STORAGE_KEYS.CONFIG, JSON.stringify(config));
+    }
   },
 
   getConfig: (): AppConfig => {
@@ -437,6 +473,7 @@ export const storage = {
   },
 
   // Merge cloud data with local (cloud wins for conflicts)
+  // Note: Cloud data already has deleted items filtered out (Deleted column = 'true')
   mergeWithCloud: (cloudData: CloudData): { config: AppConfig; expenses: Expense[]; income: Income[]; transfers: Transfer[]; accounts: BankAccount[] } => {
     const localConfig = storage.getConfig();
     const localExpenses = storage.getExpenses();
@@ -457,6 +494,11 @@ export const storage = {
       balances: cloudData.config?.balances || localConfig.balances
     };
 
+    // Build set of cloud IDs (items not deleted in cloud)
+    const cloudExpenseIds = new Set(cloudData.expenses.map(e => e.id));
+    const cloudIncomeIds = new Set(cloudData.income.map(i => i.id));
+    const cloudTransferIds = new Set(cloudData.transfers.map(t => t.id));
+
     // Merge expenses: combine both, dedupe by ID, prefer local unsynced
     const expenseMap = new Map<string, Expense>();
 
@@ -466,8 +508,13 @@ export const storage = {
     });
 
     // Add local expenses (overwrite if unsynced to preserve local changes)
+    // Skip local items that were deleted in cloud (not in cloudExpenseIds but synced)
     localExpenses.forEach(e => {
       if (!e.synced || !expenseMap.has(e.id)) {
+        // If item is synced but not in cloud, it was deleted in cloud - don't add it back
+        if (e.synced && !cloudExpenseIds.has(e.id)) {
+          return;
+        }
         expenseMap.set(e.id, e);
       }
     });
@@ -486,6 +533,9 @@ export const storage = {
     // Add local income (overwrite if unsynced to preserve local changes)
     localIncome.forEach(i => {
       if (!i.synced || !incomeMap.has(i.id)) {
+        if (i.synced && !cloudIncomeIds.has(i.id)) {
+          return;
+        }
         incomeMap.set(i.id, i);
       }
     });
@@ -504,6 +554,9 @@ export const storage = {
     // Add local transfers (overwrite if unsynced to preserve local changes)
     localTransfers.forEach(t => {
       if (!t.synced || !transferMap.has(t.id)) {
+        if (t.synced && !cloudTransferIds.has(t.id)) {
+          return;
+        }
         transferMap.set(t.id, t);
       }
     });

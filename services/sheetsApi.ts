@@ -509,6 +509,9 @@ export const sheetsApi = {
     spreadsheetId: string,
     categories: CategoryDefinition[]
   ): Promise<void> => {
+    // Ensure Categories sheet exists (for older spreadsheets)
+    await sheetsApi.ensureCategoriesSheet(accessToken, spreadsheetId);
+
     const rows = categories.map(cat => [
       cat.id,
       cat.name,
@@ -520,6 +523,39 @@ export const sheetsApi = {
     await sheetsApi.clearValues(accessToken, spreadsheetId, 'Categories!A2:D');
     if (rows.length > 0) {
       await sheetsApi.updateValues(accessToken, spreadsheetId, 'Categories!A2:D', rows);
+    }
+  },
+
+  // Ensure Categories sheet exists (migration helper for older spreadsheets)
+  ensureCategoriesSheet: async (accessToken: string, spreadsheetId: string): Promise<void> => {
+    try {
+      const spreadsheet = await sheetsApi.getSpreadsheet(accessToken, spreadsheetId);
+      if (!spreadsheet.sheets.includes('Categories')) {
+        // Add Categories sheet via batchUpdate
+        const response = await fetch(`${SHEETS_API}/${spreadsheetId}:batchUpdate`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            requests: [{
+              addSheet: {
+                properties: { title: 'Categories' }
+              }
+            }]
+          })
+        });
+
+        if (response.ok) {
+          // Add header row
+          await sheetsApi.updateValues(accessToken, spreadsheetId, 'Categories!A1:D1', [
+            ['ID', 'Name', 'Type', 'Icon']
+          ]);
+        }
+      }
+    } catch {
+      // Ignore errors - sheet might already exist
     }
   },
 

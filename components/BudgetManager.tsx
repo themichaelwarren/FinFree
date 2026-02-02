@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import { ICONS, DEFAULT_CATEGORIES, AVAILABLE_ICONS, renderCategoryIcon } from '../constants';
 import { AppConfig, Category, ExpenseType, CategoryDefinition, CategoryIcon } from '../types';
 
@@ -9,6 +9,9 @@ interface BudgetManagerProps {
   isDark?: boolean;
 }
 
+type SortColumn = 'expense' | 'type' | 'budget';
+type SortDirection = 'asc' | 'desc';
+
 const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = true }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [showCategoryEditor, setShowCategoryEditor] = useState(false);
@@ -16,9 +19,21 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryIcon, setNewCategoryIcon] = useState<CategoryIcon>('Home');
   const [newCategoryType, setNewCategoryType] = useState<ExpenseType>('NEED');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('expense');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const monthInputRef = useRef<HTMLInputElement>(null);
 
   const categories = config.categories || DEFAULT_CATEGORIES;
+
+  // Filter categories based on search input (for duplicate detection while adding)
+  const filteredCategories = useMemo(() => {
+    if (!newCategoryName.trim()) return categories;
+    const searchTerm = newCategoryName.toLowerCase().trim();
+    return categories.filter(cat =>
+      cat.name.toLowerCase().includes(searchTerm) ||
+      cat.id.toLowerCase().includes(searchTerm)
+    );
+  }, [categories, newCategoryName]);
 
   const budget = config.budgets[selectedMonth] || {
     salary: 0,
@@ -26,6 +41,41 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
       acc[cat.id] = { amount: 0, type: cat.defaultType };
       return acc;
     }, {} as Record<Category, { amount: number; type: ExpenseType }>)
+  };
+
+  // Sort categories for budget table
+  const sortedCategories = useMemo(() => {
+    const typeOrder: Record<ExpenseType, number> = { NEED: 0, WANT: 1, SAVE: 2, DEBT: 3 };
+
+    return [...categories].sort((a, b) => {
+      const aBudget = budget.categories[a.id] || { amount: 0, type: a.defaultType };
+      const bBudget = budget.categories[b.id] || { amount: 0, type: b.defaultType };
+
+      let comparison = 0;
+      switch (sortColumn) {
+        case 'expense':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        case 'type':
+          comparison = typeOrder[aBudget.type] - typeOrder[bBudget.type];
+          break;
+        case 'budget':
+          comparison = aBudget.amount - bBudget.amount;
+          break;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+  }, [categories, budget, sortColumn, sortDirection]);
+
+  // Toggle sort column/direction
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortColumn(column);
+      setSortDirection('asc');
+    }
   };
 
   const adjustMonth = (delta: number) => {
@@ -248,13 +298,43 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className={`text-[9px] font-black uppercase tracking-[0.25em] border-b ${isDark ? 'text-zinc-600 border-zinc-800/50' : 'text-gray-400 border-gray-200'}`}>
-                <th className="px-6 py-4">Expense</th>
-                <th className="px-6 py-4">Type</th>
-                <th className="px-6 py-4 text-right">Budget</th>
+                <th className="px-6 py-4">
+                  <button
+                    onClick={() => handleSort('expense')}
+                    className={`flex items-center gap-1 transition-colors ${sortColumn === 'expense' ? (isDark ? 'text-white' : 'text-gray-900') : ''} hover:${isDark ? 'text-zinc-400' : 'text-gray-600'}`}
+                  >
+                    Expense
+                    {sortColumn === 'expense' && (
+                      <span className="text-[8px]">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                    )}
+                  </button>
+                </th>
+                <th className="px-6 py-4">
+                  <button
+                    onClick={() => handleSort('type')}
+                    className={`flex items-center gap-1 transition-colors ${sortColumn === 'type' ? (isDark ? 'text-white' : 'text-gray-900') : ''} hover:${isDark ? 'text-zinc-400' : 'text-gray-600'}`}
+                  >
+                    Type
+                    {sortColumn === 'type' && (
+                      <span className="text-[8px]">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                    )}
+                  </button>
+                </th>
+                <th className="px-6 py-4 text-right">
+                  <button
+                    onClick={() => handleSort('budget')}
+                    className={`flex items-center gap-1 ml-auto transition-colors ${sortColumn === 'budget' ? (isDark ? 'text-white' : 'text-gray-900') : ''} hover:${isDark ? 'text-zinc-400' : 'text-gray-600'}`}
+                  >
+                    Budget
+                    {sortColumn === 'budget' && (
+                      <span className="text-[8px]">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                    )}
+                  </button>
+                </th>
               </tr>
             </thead>
             <tbody className={`divide-y ${isDark ? 'divide-zinc-800/50' : 'divide-gray-100'}`}>
-              {categories.map((cat) => {
+              {sortedCategories.map((cat) => {
                 const catBudget = budget.categories[cat.id] || { amount: 0, type: cat.defaultType };
                 const percentage = budget.salary > 0 ? ((catBudget.amount / budget.salary) * 100).toFixed(1) : '0';
 
@@ -400,36 +480,58 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
               </div>
             </div>
 
-            {/* Category List */}
+            {/* Category List - filtered when typing to detect duplicates */}
+            <div className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? 'border-zinc-800/50 bg-zinc-900/30' : 'border-gray-100 bg-gray-50'}`}>
+              <span className={`text-[9px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+                {newCategoryName.trim()
+                  ? `Matching: ${filteredCategories.length} of ${categories.length}`
+                  : `All Categories (${categories.length})`
+                }
+              </span>
+              {newCategoryName.trim() && filteredCategories.length > 0 && (
+                <span className={`text-[9px] font-medium ${isDark ? 'text-amber-500' : 'text-amber-600'}`}>
+                  Similar exists!
+                </span>
+              )}
+            </div>
             <div className="max-h-64 overflow-y-auto">
-              {categories.map(cat => (
-                <div
-                  key={cat.id}
-                  className={`flex items-center justify-between px-4 py-3 border-b last:border-b-0 ${isDark ? 'border-zinc-800/50' : 'border-gray-100'}`}
-                >
-                  <div className="flex items-center gap-3">
-                    {renderCategoryIcon(cat.icon, `w-4 h-4 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`)}
-                    <div>
-                      <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{cat.name}</p>
-                      <p className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{cat.defaultType}</p>
+              {filteredCategories.length === 0 && newCategoryName.trim() ? (
+                <div className={`px-4 py-6 text-center ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+                  <p className="text-xs font-medium">No matching categories</p>
+                  <p className={`text-[10px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                    "{newCategoryName}" appears to be new
+                  </p>
+                </div>
+              ) : (
+                filteredCategories.map(cat => (
+                  <div
+                    key={cat.id}
+                    className={`flex items-center justify-between px-4 py-3 border-b last:border-b-0 ${isDark ? 'border-zinc-800/50' : 'border-gray-100'}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      {renderCategoryIcon(cat.icon, `w-4 h-4 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`)}
+                      <div>
+                        <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{cat.name}</p>
+                        <p className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{cat.defaultType}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleEditCategory(cat)}
+                        className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800 text-zinc-500 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}`}
+                      >
+                        <ICONS.Settings className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(cat.id)}
+                        className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-rose-500/10 text-zinc-500 hover:text-rose-500' : 'hover:bg-rose-50 text-gray-400 hover:text-rose-500'}`}
+                      >
+                        <ICONS.AlertCircle className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleEditCategory(cat)}
-                      className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-zinc-800 text-zinc-500 hover:text-white' : 'hover:bg-gray-100 text-gray-400 hover:text-gray-700'}`}
-                    >
-                      <ICONS.Settings className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteCategory(cat.id)}
-                      className={`p-2 rounded-lg transition-colors ${isDark ? 'hover:bg-rose-500/10 text-zinc-500 hover:text-rose-500' : 'hover:bg-rose-50 text-gray-400 hover:text-rose-500'}`}
-                    >
-                      <ICONS.AlertCircle className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         )}

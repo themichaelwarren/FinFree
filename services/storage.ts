@@ -483,12 +483,17 @@ export const storage = {
 
     // Merge config: cloud budgets/balances win, keep local API keys and OAuth settings
     // Prefer budgets from dedicated Budgets sheet if available, fall back to config.budgets
+    // For categories: cloud (if non-empty) > local (if non-empty) > DEFAULT_CATEGORIES
+    const cloudCategories = cloudData.config?.categories;
+    const hasCloudCategories = cloudCategories && cloudCategories.length > 0;
+    const hasLocalCategories = localConfig.categories && localConfig.categories.length > 0;
+    const mergedCategories = hasCloudCategories ? cloudCategories : (hasLocalCategories ? localConfig.categories : DEFAULT_CATEGORIES);
     const mergedConfig: AppConfig = {
       geminiKey: localConfig.geminiKey,
       sheetsUrl: localConfig.sheetsUrl,
       sheetsSecret: localConfig.sheetsSecret,
       spreadsheetId: localConfig.spreadsheetId,  // Preserve OAuth spreadsheet ID
-      categories: cloudData.config?.categories || localConfig.categories,
+      categories: mergedCategories,
       theme: cloudData.config?.theme || localConfig.theme,
       budgets: cloudData.budgets || cloudData.config?.budgets || localConfig.budgets,
       balances: cloudData.config?.balances || localConfig.balances

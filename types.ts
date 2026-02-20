@@ -3,7 +3,7 @@ export type ExpenseType = 'NEED' | 'WANT' | 'SAVE' | 'DEBT';
 
 export type PaymentMethod = 'Cash' | 'Card' | 'Bank';
 
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'system';
 
 // Icon names available for categories
 export type CategoryIcon =
@@ -84,11 +84,22 @@ export interface Transfer {
   direction?: TransferDirection;  // Legacy, kept for migration
 }
 
-// Starting balance for running total calculations
-export interface StartingBalance {
-  cash: number;
-  accounts: Record<string, number>;  // accountId → balance
+// Per-account starting balance with its own date
+export interface AccountStartingBalance {
+  balance: number;
   asOfDate: string;  // YYYY-MM-DD
+}
+
+// Starting balance for running total calculations
+// Supports per-account dates: each account can have its own starting date
+export interface StartingBalance {
+  // New per-account format with individual dates
+  cash?: AccountStartingBalance;
+  accountBalances?: Record<string, AccountStartingBalance>;  // accountId → {balance, asOfDate}
+
+  // Legacy format (single date for all) - kept for backwards compatibility
+  accounts?: Record<string, number>;  // accountId → balance (deprecated)
+  asOfDate?: string;  // YYYY-MM-DD (deprecated, used as fallback)
   bank?: number;  // Deprecated, kept for migration
 }
 

@@ -65,9 +65,9 @@ const AccountManager: React.FC<AccountManagerProps> = ({
   };
 
   return (
-    <div className={`rounded-2xl p-6 ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className={`text-sm font-bold uppercase tracking-widest ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>
+    <div className={`rounded-xl p-4 ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className={`text-sm font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>
           Bank Accounts
         </h2>
         <button
@@ -79,16 +79,16 @@ const AccountManager: React.FC<AccountManagerProps> = ({
       </div>
 
       {error && (
-        <div className="mb-4 p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-sm">
+        <div className="mb-4 p-3 rounded-lg bg-rose-950 border border-rose-900 text-rose-500 text-sm">
           {error}
         </div>
       )}
 
       {/* Cash account (read-only) */}
-      <div className={`p-4 rounded-xl mb-3 ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}>
+      <div className={`p-4 rounded-xl mb-3 ${isDark ? 'bg-zinc-800 border border-zinc-700' : 'bg-gray-50 border border-gray-200'}`}>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-800/50' : 'bg-emerald-100 text-emerald-600 border border-emerald-200'}`}>
+            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-emerald-900 text-emerald-400 border border-emerald-800' : 'bg-emerald-100 text-emerald-600 border border-emerald-200'}`}>
               <Banknote className="w-5 h-5" />
             </div>
             <div>
@@ -106,7 +106,7 @@ const AccountManager: React.FC<AccountManagerProps> = ({
       {accounts.map(account => (
         <div
           key={account.id}
-          className={`p-4 rounded-xl mb-3 ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}
+          className={`p-4 rounded-xl mb-3 ${isDark ? 'bg-zinc-800 border border-zinc-700' : 'bg-gray-50 border border-gray-200'}`}
         >
           {editingId === account.id ? (
             <div className="flex items-center gap-2">
@@ -137,7 +137,7 @@ const AccountManager: React.FC<AccountManagerProps> = ({
           ) : (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-900/50 text-blue-400 border border-blue-800/50' : 'bg-blue-100 text-blue-600 border border-blue-200'}`}>
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isDark ? 'bg-blue-900 text-blue-400 border border-blue-800' : 'bg-blue-100 text-blue-600 border border-blue-200'}`}>
                   <Building2 className="w-5 h-5" />
                 </div>
                 <div>

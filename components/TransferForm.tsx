@@ -97,18 +97,18 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
   };
 
   return (
-    <div className={`rounded-2xl p-6 mb-8 shadow-xl overflow-hidden ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+    <div className={`rounded-xl p-4 overflow-hidden ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
       <form onSubmit={handleSubmit} className="space-y-5 overflow-hidden">
         {/* Amount */}
         <div>
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Amount (¥)</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Amount (¥)</label>
           <input
             type="number"
             inputMode="numeric"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0"
-            className={`w-full border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 transition-all outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
+            className={`w-full border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 transition-colors outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
             required
           />
         </div>
@@ -119,7 +119,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
             <button
               type="button"
               onClick={setATMWithdrawal}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
                 fromAccountId !== 'cash' && toAccountId === 'cash'
                   ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
                   : isDark ? 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -130,7 +130,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
             <button
               type="button"
               onClick={setBankDeposit}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-all ${
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors ${
                 fromAccountId === 'cash' && toAccountId !== 'cash'
                   ? isDark ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white'
                   : isDark ? 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
@@ -144,7 +144,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
         {/* From / To Account Selection */}
         <div className="grid grid-cols-5 gap-2 items-end">
           <div className="col-span-2">
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>From</label>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>From</label>
             <select
               value={fromAccountId}
               onChange={(e) => {
@@ -168,7 +168,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
             <ArrowRight className={`w-5 h-5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
           </div>
           <div className="col-span-2">
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>To</label>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>To</label>
             <select
               value={toAccountId}
               onChange={(e) => setToAccountId(e.target.value)}
@@ -187,7 +187,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
 
         {/* Date */}
         <div className="overflow-hidden">
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>
           <div className="overflow-hidden rounded-xl">
             <input
               type="date"
@@ -206,7 +206,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
             onClick={() => setShowFee(!showFee)}
             className={`flex items-center gap-2 text-xs font-medium transition-colors ${isDark ? 'text-zinc-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
           >
-            <span className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+            <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${
               showFee
                 ? isDark ? 'bg-blue-600 border-blue-600 text-white' : 'bg-blue-600 border-blue-600 text-white'
                 : isDark ? 'border-zinc-600' : 'border-gray-400'
@@ -218,7 +218,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
 
           {showFee && (
             <div className="mt-3">
-              <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Fee Amount (¥)</label>
+              <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Fee Amount (¥)</label>
               <input
                 type="number"
                 inputMode="numeric"
@@ -227,7 +227,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
                 placeholder="0"
                 className={`w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none font-medium ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10 placeholder:text-zinc-600' : 'bg-gray-100 text-gray-900 focus:ring-gray-300 placeholder:text-gray-400'}`}
               />
-              <p className={`text-[10px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+              <p className={`text-xs mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                 Will be recorded as a Fees expense
               </p>
             </div>
@@ -236,7 +236,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
 
         {/* Description */}
         <div>
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Description (optional)</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Description (optional)</label>
           <input
             type="text"
             value={description}
@@ -248,7 +248,7 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
 
         {/* Notes (optional) */}
         <div>
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Notes (optional)</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Notes (optional)</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -262,9 +262,9 @@ const TransferForm: React.FC<TransferFormProps> = ({ onSave, isDark = true, bank
         <button
           type="submit"
           disabled={!isFormValid}
-          className={`w-full font-bold py-4 rounded-xl transition-all shadow-lg ${
+          className={`w-full font-bold py-4 rounded-xl transition-colors ${
             isFormValid
-              ? isDark ? 'bg-blue-600 text-white hover:bg-blue-500 active:scale-[0.98]' : 'bg-blue-600 text-white hover:bg-blue-500 active:scale-[0.98]'
+              ? isDark ? 'bg-blue-600 text-white hover:bg-blue-500' : 'bg-blue-600 text-white hover:bg-blue-500'
               : isDark ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >

@@ -75,12 +75,12 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, isDark = true })
 
       {/* Modal */}
       <div
-        className={`relative w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300 ${
-          isDark ? 'bg-[#0a0a0a] border border-zinc-800' : 'bg-white border border-gray-200'
+        className={`relative w-full sm:max-w-lg max-h-[90vh] overflow-y-auto rounded-t-xl sm:rounded-xl shadow-sm ${
+          isDark ? 'bg-zinc-950 border border-zinc-800' : 'bg-white border border-gray-200'
         }`}
       >
         {/* Header */}
-        <div className={`sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b ${isDark ? 'bg-[#0a0a0a] border-zinc-800' : 'bg-white border-gray-200'}`}>
+        <div className={`sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b ${isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'}`}>
           <div className="flex items-center gap-3">
             <div className={`p-2 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-gray-100'}`}>
               <HelpCircle className={`w-5 h-5 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`} />
@@ -109,7 +109,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, isDark = true })
             {sections.map((section, index) => (
               <div
                 key={index}
-                className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}
+                className={`p-4 rounded-xl ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-gray-50 border border-gray-200'}`}
               >
                 <div className="flex items-start gap-3">
                   <div className={`p-2 rounded-xl shrink-0 ${isDark ? 'bg-zinc-800' : 'bg-white border border-gray-200'}`}>
@@ -129,7 +129,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, isDark = true })
           </div>
 
           {/* Quick Tips */}
-          <div className={`p-4 rounded-2xl ${isDark ? 'bg-emerald-950/30 border border-emerald-900/30' : 'bg-emerald-50 border border-emerald-200'}`}>
+          <div className={`p-4 rounded-xl ${isDark ? 'bg-emerald-950 border border-emerald-900' : 'bg-emerald-50 border border-emerald-200'}`}>
             <h3 className={`font-bold text-sm mb-2 ${isDark ? 'text-emerald-400' : 'text-emerald-700'}`}>
               Quick Tips
             </h3>
@@ -142,8 +142,8 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, isDark = true })
           </div>
 
           {/* Formula explanation */}
-          <div className={`p-4 rounded-2xl ${isDark ? 'bg-zinc-900/50 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}>
-            <h3 className={`font-bold text-xs uppercase tracking-wider mb-3 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+          <div className={`p-4 rounded-xl ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-gray-50 border border-gray-200'}`}>
+            <h3 className={`font-medium text-xs mb-3 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
               The Math
             </h3>
             <div className={`space-y-2 font-mono text-xs ${isDark ? 'text-zinc-400' : 'text-gray-600'}`}>
@@ -170,7 +170,7 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose, isDark = true })
         <div className={`px-6 py-4 border-t ${isDark ? 'border-zinc-800' : 'border-gray-200'}`}>
           <button
             onClick={onClose}
-            className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${
+            className={`w-full py-3 rounded-xl font-bold text-sm transition-colors ${
               isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'
             }`}
           >

@@ -47,18 +47,18 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ onSave, isDark = true, bankAcco
   };
 
   return (
-    <div className={`rounded-2xl p-6 mb-8 shadow-xl overflow-hidden ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+    <div className={`rounded-xl p-4 overflow-hidden ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
       <form onSubmit={handleSubmit} className="space-y-5 overflow-hidden">
         {/* Amount */}
         <div>
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Amount (¥)</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Amount (¥)</label>
           <input
             type="number"
             inputMode="numeric"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0"
-            className={`w-full border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 transition-all outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
+            className={`w-full border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 transition-colors outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
             required
           />
         </div>
@@ -66,7 +66,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ onSave, isDark = true, bankAcco
         <div className="grid grid-cols-2 gap-3">
           {/* Category */}
           <div>
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Category</label>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Category</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as IncomeCategory)}
@@ -81,7 +81,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ onSave, isDark = true, bankAcco
 
           {/* Deposit To Account */}
           <div>
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Deposit To</label>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Deposit To</label>
             <select
               value={depositTo}
               onChange={(e) => setDepositTo(e.target.value)}
@@ -104,7 +104,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ onSave, isDark = true, bankAcco
 
         {/* Date */}
         <div className="overflow-hidden">
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>
           <div className="overflow-hidden rounded-xl">
             <input
               type="date"
@@ -118,7 +118,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ onSave, isDark = true, bankAcco
 
         {/* Description */}
         <div>
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Description</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Description</label>
           <input
             type="text"
             value={description}
@@ -130,7 +130,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ onSave, isDark = true, bankAcco
 
         {/* Notes (optional) */}
         <div>
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Notes (optional)</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Notes (optional)</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
@@ -144,9 +144,9 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ onSave, isDark = true, bankAcco
         <button
           type="submit"
           disabled={!isFormValid}
-          className={`w-full font-bold py-4 rounded-xl transition-all shadow-lg ${
+          className={`w-full font-bold py-4 rounded-xl transition-colors ${
             isFormValid
-              ? isDark ? 'bg-emerald-600 text-white hover:bg-emerald-500 active:scale-[0.98]' : 'bg-emerald-600 text-white hover:bg-emerald-500 active:scale-[0.98]'
+              ? isDark ? 'bg-emerald-600 text-white hover:bg-emerald-500' : 'bg-emerald-600 text-white hover:bg-emerald-500'
               : isDark ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >

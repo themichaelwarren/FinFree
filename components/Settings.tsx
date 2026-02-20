@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { AppConfig, BankAccount } from '../types';
+import { AppConfig, BankAccount, Theme } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { authService } from '../services/auth';
 import AccountManager from './AccountManager';
@@ -70,14 +70,14 @@ const Settings: React.FC<SettingsProps> = ({
   };
 
   const inputClass = `w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/20 placeholder:text-zinc-600' : 'bg-gray-100 text-gray-900 focus:ring-gray-300 placeholder:text-gray-400'}`;
-  const labelClass = `block text-[10px] font-medium uppercase tracking-wider mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`;
-  const sectionTitleClass = `text-xs font-bold uppercase tracking-widest ${isDark ? 'text-zinc-500' : 'text-gray-500'}`;
-  const buttonClass = `px-4 py-2 rounded-xl text-sm font-medium transition-all active:scale-95 ${isDark ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gray-200 text-gray-900 hover:bg-gray-300'}`;
-  const primaryButtonClass = `px-4 py-2 rounded-xl text-sm font-medium transition-all active:scale-95 ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`;
+  const labelClass = `block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`;
+  const sectionTitleClass = `text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`;
+  const buttonClass = `px-4 py-2 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gray-200 text-gray-900 hover:bg-gray-300'}`;
+  const primaryButtonClass = `px-4 py-2 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`;
 
   return (
-    <div className={`fixed inset-0 z-50 overflow-y-auto safe-bottom ${isDark ? 'bg-black' : 'bg-white'}`}>
-      <div className="p-6 flex flex-col min-h-full">
+    <div className={`fixed inset-0 z-50 overflow-y-auto safe-bottom ${isDark ? 'bg-zinc-950' : 'bg-white'}`}>
+      <div className="max-w-md lg:max-w-5xl mx-auto w-full p-6 flex flex-col min-h-full">
         <div className="flex items-center justify-between mb-8">
           <h2 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Settings</h2>
           <button onClick={onClose} className={`p-2 ${isDark ? 'text-zinc-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}>Close</button>
@@ -118,7 +118,7 @@ const Settings: React.FC<SettingsProps> = ({
                     placeholder="Your Google Cloud OAuth Client ID"
                     className={inputClass}
                   />
-                  <p className={`text-[9px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                     Create one at console.cloud.google.com — saved automatically
                   </p>
                 </div>
@@ -245,12 +245,32 @@ const Settings: React.FC<SettingsProps> = ({
                     placeholder="Your secret token"
                     className={inputClass}
                   />
-                  <p className={`text-[9px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                     Must match the API_SECRET in your Apps Script
                   </p>
                 </div>
               </div>
             )}
+          </section>
+
+          {/* APPEARANCE */}
+          <section className="space-y-4">
+            <h3 className={sectionTitleClass}>Appearance</h3>
+            <div className="flex gap-2">
+              {(['light', 'dark', 'system'] as Theme[]).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setForm({ ...form, theme: t })}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                    form.theme === t
+                      ? (isDark ? 'bg-white text-black' : 'bg-gray-900 text-white')
+                      : (isDark ? 'bg-zinc-900 text-zinc-400 hover:text-white' : 'bg-gray-100 text-gray-600 hover:text-gray-900')
+                  }`}
+                >
+                  {t === 'light' ? 'Light' : t === 'dark' ? 'Dark' : 'System'}
+                </button>
+              ))}
+            </div>
           </section>
 
           <section className="space-y-4">
@@ -269,7 +289,7 @@ const Settings: React.FC<SettingsProps> = ({
               onSave({ ...form, spreadsheetId });
               onClose();
             }}
-            className={`w-full font-semibold py-4 rounded-xl active:scale-[0.98] transition-all ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
+            className={`w-full font-semibold py-4 rounded-xl transition-colors ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
           >
             Save Configuration
           </button>

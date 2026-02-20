@@ -1,9 +1,10 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Expense, AppConfig, AccountBalances, Theme, SyncMode, Income, StartingBalance, Transfer, BankAccount } from './types';
 import { storage } from './services/storage';
 import { authService } from './services/auth';
 import { sheetsApi } from './services/sheetsApi';
+import { calculations } from './services/calculations';
 import { ICONS } from './constants';
 import BudgetSummary from './components/BudgetSummary';
 import TransactionList from './components/TransactionList';
@@ -123,6 +124,8 @@ const AppContent: React.FC = () => {
         const unsyncedExpenses = localExpenses.filter(e => !e.synced);
         const localIncome = storage.getIncome();
         const unsyncedIncome = localIncome.filter(i => !i.synced);
+        const localTransfers = storage.getTransfers();
+        const unsyncedTransfers = localTransfers.filter(t => !t.synced);
 
         if (syncMode === 'oauth' && localConfig.spreadsheetId) {
           // Sync unsynced expenses
@@ -144,6 +147,16 @@ const AppContent: React.FC = () => {
             });
             setIncome(updated);
           }
+
+          // Sync unsynced transfers
+          if (unsyncedTransfers.length > 0) {
+            await sheetsApi.addTransfers(user.accessToken, localConfig.spreadsheetId, unsyncedTransfers);
+            let updated = localTransfers;
+            unsyncedTransfers.forEach(t => {
+              updated = storage.updateTransfer(t.id, { synced: true });
+            });
+            setTransfers(updated);
+          }
         }
       } catch (error) {
         console.error('Cloud sync failed:', error);
@@ -164,6 +177,8 @@ const AppContent: React.FC = () => {
     const unsyncedExpenses = currentExpenses.filter(e => !e.synced);
     const currentIncome = storage.getIncome();
     const unsyncedIncome = currentIncome.filter(i => !i.synced);
+    const currentTransfers = storage.getTransfers();
+    const unsyncedTransfers = currentTransfers.filter(t => !t.synced);
 
     try {
       if (syncMode === 'oauth' && user?.accessToken && config.spreadsheetId) {
@@ -184,6 +199,15 @@ const AppContent: React.FC = () => {
             updated = storage.updateIncome(i.id, { synced: true });
           });
           setIncome(updated);
+        }
+
+        if (unsyncedTransfers.length > 0) {
+          await sheetsApi.addTransfers(user.accessToken, config.spreadsheetId, unsyncedTransfers);
+          let updated = currentTransfers;
+          unsyncedTransfers.forEach(t => {
+            updated = storage.updateTransfer(t.id, { synced: true });
+          });
+          setTransfers(updated);
         }
       } else if (syncMode === 'appsscript') {
         // Apps Script mode
@@ -486,35 +510,36 @@ const AppContent: React.FC = () => {
     await handleBalanceUpdate(newBalances);
   };
 
-  const toggleTheme = async () => {
-    const newTheme: Theme = config.theme === 'dark' ? 'light' : 'dark';
-    const newConfig = { ...config, theme: newTheme };
-    storage.saveConfig(newConfig);
-    setConfig(newConfig);
+  // System theme detection
+  const [systemPrefersDark, setSystemPrefersDark] = useState(() =>
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  );
 
-    const syncMode = getSyncMode(newConfig);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)');
+    const handler = (e: MediaQueryListEvent) => setSystemPrefersDark(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
-    // Sync theme preference to cloud
-    if (isOnline && syncMode !== 'local') {
-      try {
-        if (syncMode === 'oauth' && user?.accessToken && newConfig.spreadsheetId) {
-          await sheetsApi.saveConfig(user.accessToken, newConfig.spreadsheetId, { theme: newTheme });
-        } else if (syncMode === 'appsscript') {
-          storage.syncConfigToCloud(newConfig, newConfig.sheetsUrl, newConfig.sheetsSecret);
-        }
-      } catch (error) {
-        console.error('Theme sync failed:', error);
-      }
-    }
-  };
+  const isDark = config.theme === 'system' ? systemPrefersDark : config.theme === 'dark';
 
-  const isDark = config.theme === 'dark';
+  // Calculate warnings for future transactions with insufficient funds
+  const futureBalanceWarnings = useMemo(() => {
+    return calculations.calculateFutureBalanceWarnings(
+      config.balances.startingBalance,
+      income,
+      expenses,
+      transfers,
+      accounts
+    );
+  }, [config.balances.startingBalance, income, expenses, transfers, accounts]);
 
   const renderContent = () => {
     switch (activeTab) {
       case 'track':
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 lg:grid lg:grid-cols-2 lg:gap-8">
+          <div className="lg:grid lg:grid-cols-2 lg:gap-8">
             <div>
               <BudgetSummary
                 expenses={expenses}
@@ -538,6 +563,7 @@ const AppContent: React.FC = () => {
                 isDark={isDark}
                 categories={config.categories}
                 limit={8}
+                futureBalanceWarnings={futureBalanceWarnings}
               />
             </div>
           </div>
@@ -548,7 +574,7 @@ const AppContent: React.FC = () => {
         );
       case 'history':
         return (
-          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+          <div>
             <TransactionList
               expenses={expenses}
               income={income}
@@ -562,6 +588,7 @@ const AppContent: React.FC = () => {
               categories={config.categories}
               bankAccounts={accounts}
               isDark={isDark}
+              futureBalanceWarnings={futureBalanceWarnings}
             />
           </div>
         );
@@ -570,7 +597,7 @@ const AppContent: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-black' : 'bg-gray-50'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-zinc-950' : 'bg-gray-50'}`}>
         <div className="text-center">
           <div className={`w-8 h-8 border-2 rounded-full animate-spin mx-auto mb-4 ${isDark ? 'border-zinc-700 border-t-white' : 'border-gray-200 border-t-gray-600'}`} />
           <p className={`text-sm font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Loading...</p>
@@ -580,7 +607,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-black' : 'bg-gray-50'}`}>
+    <div className={`min-h-screen transition-colors duration-300 ${isDark ? 'bg-zinc-950' : 'bg-gray-50'}`}>
     <div className={`max-w-md lg:max-w-5xl mx-auto px-4 lg:px-8 pt-6 lg:pt-8 pb-24 lg:pb-12 min-h-screen relative ${isDark ? 'text-zinc-100' : 'text-gray-900'}`}>
       {/* Header */}
       <div className="flex justify-between items-center mb-6 lg:mb-8">
@@ -594,7 +621,7 @@ const AppContent: React.FC = () => {
                   return (
                     <>
                       <div className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                      <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Offline</span>
+                      <span className={`text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Offline</span>
                     </>
                   );
                 }
@@ -602,23 +629,23 @@ const AppContent: React.FC = () => {
                   return (
                     <>
                       <div className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-zinc-500' : 'bg-gray-400'}`} />
-                      <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Local</span>
+                      <span className={`text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Local</span>
                     </>
                   );
                 }
                 return (
                   <>
-                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]" />
-                    <span className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Synced</span>
+                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span className={`text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Synced</span>
                   </>
                 );
               })()}
-              {isSyncing && <span className={`text-[9px] animate-pulse ml-1 font-medium ${isDark ? 'text-zinc-400' : 'text-gray-400'}`}>...</span>}
+              {isSyncing && <span className={`text-xs animate-pulse ml-1 font-medium ${isDark ? 'text-zinc-400' : 'text-gray-400'}`}>...</span>}
             </div>
           </div>
 
           {/* Desktop Navigation Tabs */}
-          <nav className={`hidden lg:flex items-center p-1 rounded-xl ${isDark ? 'bg-zinc-900/50' : 'bg-gray-100'}`}>
+          <nav className={`hidden lg:flex items-center p-1 rounded-xl ${isDark ? 'bg-zinc-900' : 'bg-gray-100'}`}>
             {([
               { id: 'track', label: 'Overview', icon: ICONS.LayoutGrid },
               { id: 'budget', label: 'Budget', icon: ICONS.Table },
@@ -627,7 +654,7 @@ const AppContent: React.FC = () => {
               <button
                 key={id}
                 onClick={() => setActiveTab(id)}
-                className={`px-4 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold transition-all ${
+                className={`px-4 py-2 rounded-lg flex items-center gap-2 text-xs font-semibold transition-colors ${
                   activeTab === id
                     ? isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 shadow-sm'
                     : isDark ? 'text-zinc-500 hover:text-zinc-300' : 'text-gray-500 hover:text-gray-700'
@@ -644,27 +671,21 @@ const AppContent: React.FC = () => {
           {/* Desktop Add Button */}
           <button
             onClick={() => setShowExpenseModal(true)}
-            className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
+            className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm transition-colors ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
           >
             <ICONS.Plus className="w-4 h-4" />
             Add Entry
           </button>
           <button
             onClick={() => setShowHelp(true)}
-            className={`p-2.5 lg:p-2 rounded-xl transition-all active:scale-95 ${isDark ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900'}`}
+            className={`p-2.5 lg:p-2 rounded-xl transition-colors ${isDark ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900'}`}
             title="Help"
           >
             <HelpCircle className="w-5 h-5 lg:w-4 lg:h-4" />
           </button>
           <button
-            onClick={toggleTheme}
-            className={`p-2.5 lg:p-2 rounded-xl transition-all active:scale-95 ${isDark ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900'}`}
-          >
-            {isDark ? <ICONS.Sun className="w-5 h-5 lg:w-4 lg:h-4" /> : <ICONS.Moon className="w-5 h-5 lg:w-4 lg:h-4" />}
-          </button>
-          <button
             onClick={() => setShowSettings(true)}
-            className={`p-2.5 lg:p-2 rounded-xl transition-all active:scale-95 ${isDark ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900'}`}
+            className={`p-2.5 lg:p-2 rounded-xl transition-colors ${isDark ? 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white' : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-900'}`}
           >
             <ICONS.Settings className="w-5 h-5 lg:w-4 lg:h-4" />
           </button>
@@ -677,7 +698,7 @@ const AppContent: React.FC = () => {
       </main>
 
       {/* Mobile Bottom Navigation */}
-      <nav className={`lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 backdrop-blur-2xl rounded-2xl p-1.5 flex items-center gap-1 shadow-2xl z-40 ${isDark ? 'bg-black/70 border border-zinc-800/50' : 'bg-white/90 border border-gray-200'}`}>
+      <nav className={`lg:hidden fixed bottom-4 left-1/2 -translate-x-1/2 rounded-xl p-1.5 flex items-center gap-1 shadow-sm z-40 ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
         {([
           { id: 'track', icon: ICONS.LayoutGrid },
           { id: 'budget', icon: ICONS.Table },
@@ -686,7 +707,7 @@ const AppContent: React.FC = () => {
           <button
             key={id}
             onClick={() => setActiveTab(id)}
-            className={`p-3 rounded-xl transition-all duration-200 ${
+            className={`p-3 rounded-xl transition-colors ${
               activeTab === id
                 ? isDark ? 'bg-white text-black' : 'bg-gray-900 text-white'
                 : isDark ? 'text-zinc-500' : 'text-gray-400'
@@ -700,7 +721,7 @@ const AppContent: React.FC = () => {
       {/* Mobile FAB */}
       <button
         onClick={() => setShowExpenseModal(true)}
-        className={`lg:hidden fixed bottom-20 right-4 w-14 h-14 rounded-2xl flex items-center justify-center shadow-2xl z-40 transition-all active:scale-95 ${isDark ? 'bg-white text-black' : 'bg-gray-900 text-white'}`}
+        className={`lg:hidden fixed bottom-20 right-4 w-14 h-14 rounded-xl flex items-center justify-center shadow-sm z-40 transition-colors ${isDark ? 'bg-white text-black' : 'bg-gray-900 text-white'}`}
       >
         <ICONS.Plus className="w-6 h-6" />
       </button>

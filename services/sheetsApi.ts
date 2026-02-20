@@ -274,11 +274,43 @@ export const sheetsApi = {
     // Ensure Transactions sheet exists
     await sheetsApi.ensureTransactionsSheet(accessToken, spreadsheetId);
 
-    // Get existing expenses to determine which need adding vs updating
-    const existing = await sheetsApi.getExpenses(accessToken, spreadsheetId);
-    const existingIds = new Set(existing.map(e => e.id));
+    // Get all transaction IDs and their row numbers for updates
+    const allRows = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:A');
+    const idToRow = new Map<string, number>();
+    allRows.forEach((row, index) => {
+      idToRow.set(String(row[0]), index + 2); // +2 because row 1 is header, index is 0-based
+    });
 
-    const newExpenses = expenses.filter(e => !existingIds.has(e.id));
+    const newExpenses: Expense[] = [];
+    const updatesToMake: { row: number; expense: Expense }[] = [];
+
+    expenses.forEach(e => {
+      const existingRow = idToRow.get(e.id);
+      if (existingRow) {
+        updatesToMake.push({ row: existingRow, expense: e });
+      } else {
+        newExpenses.push(e);
+      }
+    });
+
+    // Update existing expenses
+    for (const { row, expense } of updatesToMake) {
+      const rowData = [
+        expense.id,
+        expense.date,
+        expense.timestamp,
+        'expense',
+        expense.amount,
+        expense.category,
+        expense.type || 'NEED',
+        expense.paymentMethod || 'Cash',
+        expense.store || '',
+        expense.notes || '',
+        expense.source || 'manual',
+        ''  // Deleted
+      ];
+      await sheetsApi.updateValues(accessToken, spreadsheetId, `Transactions!A${row}:L${row}`, [rowData]);
+    }
 
     // Append new expenses to Transactions sheet
     if (newExpenses.length > 0) {
@@ -365,11 +397,43 @@ export const sheetsApi = {
     // Ensure Transactions sheet exists
     await sheetsApi.ensureTransactionsSheet(accessToken, spreadsheetId);
 
-    // Get existing income to determine which need adding vs updating
-    const existing = await sheetsApi.getIncome(accessToken, spreadsheetId);
-    const existingIds = new Set(existing.map(i => i.id));
+    // Get all transaction IDs and their row numbers for updates
+    const allRows = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transactions!A2:A');
+    const idToRow = new Map<string, number>();
+    allRows.forEach((row, index) => {
+      idToRow.set(String(row[0]), index + 2);
+    });
 
-    const newIncome = income.filter(i => !existingIds.has(i.id));
+    const newIncome: Income[] = [];
+    const updatesToMake: { row: number; item: Income }[] = [];
+
+    income.forEach(i => {
+      const existingRow = idToRow.get(i.id);
+      if (existingRow) {
+        updatesToMake.push({ row: existingRow, item: i });
+      } else {
+        newIncome.push(i);
+      }
+    });
+
+    // Update existing income
+    for (const { row, item } of updatesToMake) {
+      const rowData = [
+        item.id,
+        item.date,
+        item.timestamp,
+        'income',
+        item.amount,
+        item.category,
+        '',  // ExpenseType (not used for income)
+        item.paymentMethod || 'Bank',
+        item.description || '',
+        item.notes || '',
+        '',  // Source (not used for income)
+        ''  // Deleted
+      ];
+      await sheetsApi.updateValues(accessToken, spreadsheetId, `Transactions!A${row}:L${row}`, [rowData]);
+    }
 
     // Append new income to Transactions sheet
     if (newIncome.length > 0) {
@@ -676,11 +740,41 @@ export const sheetsApi = {
     // Ensure Transfers sheet exists (for older spreadsheets)
     await sheetsApi.ensureTransfersSheet(accessToken, spreadsheetId);
 
-    // Get existing transfers to determine which need adding vs updating
-    const existing = await sheetsApi.getTransfers(accessToken, spreadsheetId);
-    const existingIds = new Set(existing.map(t => t.id));
+    // Get all transfer IDs and their row numbers for updates
+    const allRows = await sheetsApi.getValues(accessToken, spreadsheetId, 'Transfers!A2:A');
+    const idToRow = new Map<string, number>();
+    allRows.forEach((row, index) => {
+      idToRow.set(String(row[0]), index + 2);
+    });
 
-    const newTransfers = transfers.filter(t => !existingIds.has(t.id));
+    const newTransfers: Transfer[] = [];
+    const updatesToMake: { row: number; transfer: Transfer }[] = [];
+
+    transfers.forEach(t => {
+      const existingRow = idToRow.get(t.id);
+      if (existingRow) {
+        updatesToMake.push({ row: existingRow, transfer: t });
+      } else {
+        newTransfers.push(t);
+      }
+    });
+
+    // Update existing transfers
+    for (const { row, transfer } of updatesToMake) {
+      const rowData = [
+        transfer.id,
+        transfer.date,
+        transfer.timestamp,
+        transfer.amount,
+        transfer.fromAccountId || 'cash',
+        transfer.toAccountId || 'bank_default',
+        transfer.direction || '',
+        transfer.description || '',
+        transfer.notes || '',
+        ''  // Deleted
+      ];
+      await sheetsApi.updateValues(accessToken, spreadsheetId, `Transfers!A${row}:J${row}`, [rowData]);
+    }
 
     // Append new transfers with new format (includes fromAccountId, toAccountId, Deleted)
     if (newTransfers.length > 0) {

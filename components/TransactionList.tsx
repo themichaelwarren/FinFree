@@ -2,7 +2,9 @@
 import React, { useState, useMemo } from 'react';
 import { Expense, ExpenseType, PaymentMethod, CategoryDefinition, Income, IncomeCategory, IncomePaymentMethod, Transfer, TransferDirection, BankAccount } from '../types';
 import { ICONS, DEFAULT_CATEGORIES, PAYMENT_METHODS, renderCategoryIcon, INCOME_CATEGORIES, INCOME_PAYMENT_METHODS, TRANSFER_DIRECTIONS } from '../constants';
-import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight } from 'lucide-react';
+import { ArrowDownLeft, ArrowUpRight, ArrowLeftRight, AlertTriangle } from 'lucide-react';
+import { FutureBalanceWarning } from '../services/calculations';
+import { getPaymentMethodDisplay } from '../services/storage';
 
 type GroupBy = 'day' | 'category' | 'none';
 type TransactionFilter = 'ALL' | 'EXPENSES' | 'INCOME' | 'TRANSFERS';
@@ -23,7 +25,9 @@ interface Transaction {
   synced: boolean;
   expenseType?: ExpenseType; // Only for expenses
   source?: string; // Only for expenses
-  transferDirection?: TransferDirection; // Only for transfers
+  transferDirection?: TransferDirection; // Only for transfers (legacy)
+  fromAccountId?: string; // Only for transfers
+  toAccountId?: string; // Only for transfers
 }
 
 interface TransactionListProps {
@@ -40,6 +44,7 @@ interface TransactionListProps {
   bankAccounts?: BankAccount[];
   isDark?: boolean;
   limit?: number; // Optional limit for preview mode
+  futureBalanceWarnings?: Map<string, FutureBalanceWarning>; // Warnings for insufficient funds
 }
 
 const TransactionList: React.FC<TransactionListProps> = ({
@@ -55,7 +60,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
   categories = DEFAULT_CATEGORIES,
   bankAccounts = [],
   isDark = true,
-  limit
+  limit,
+  futureBalanceWarnings = new Map()
 }) => {
   const [groupBy, setGroupBy] = useState<GroupBy>('day');
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,11 +76,21 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
   const getTypeColor = (type: string) => {
     switch(type) {
-      case 'NEED': return 'text-rose-500 bg-rose-500/10 border-rose-500/20';
-      case 'WANT': return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
-      case 'SAVE': return 'text-amber-500 bg-amber-500/10 border-amber-500/20';
-      case 'DEBT': return 'text-purple-500 bg-purple-500/10 border-purple-500/20';
-      default: return 'text-zinc-500 bg-zinc-500/10 border-zinc-500/20';
+      case 'NEED': return 'text-rose-500';
+      case 'WANT': return 'text-blue-500';
+      case 'SAVE': return 'text-amber-500';
+      case 'DEBT': return 'text-purple-500';
+      default: return isDark ? 'text-zinc-500' : 'text-gray-500';
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch(type) {
+      case 'NEED': return 'Need';
+      case 'WANT': return 'Want';
+      case 'SAVE': return 'Save';
+      case 'DEBT': return 'Debt';
+      default: return type;
     }
   };
 
@@ -112,7 +128,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
       id: e.id,
       type: 'expense' as const,
       date: e.date,
-      time: e.time,  // Include time for chronological sorting
+      time: e.time,
       timestamp: e.timestamp,
       amount: e.amount,
       category: e.category,
@@ -137,19 +153,34 @@ const TransactionList: React.FC<TransactionListProps> = ({
       synced: i.synced
     }));
 
-    const transferTransactions: Transaction[] = transfers.map(t => ({
-      id: t.id,
-      type: 'transfer' as const,
-      date: t.date,
-      timestamp: t.timestamp,
-      amount: t.amount,
-      category: 'TRANSFER',
-      paymentMethod: t.direction === 'BANK_TO_CASH' ? 'Bank → Cash' : 'Cash → Bank',
-      description: t.description,
-      notes: t.notes || '',
-      synced: t.synced,
-      transferDirection: t.direction
-    }));
+    const transferTransactions: Transaction[] = transfers.map(t => {
+      let paymentMethodDisplay: string;
+      if (t.fromAccountId && t.toAccountId) {
+        const fromName = t.fromAccountId === 'cash' ? 'Cash' : (bankAccounts.find(a => a.id === t.fromAccountId)?.name || 'Bank');
+        const toName = t.toAccountId === 'cash' ? 'Cash' : (bankAccounts.find(a => a.id === t.toAccountId)?.name || 'Bank');
+        paymentMethodDisplay = `${fromName} → ${toName}`;
+      } else if (t.direction) {
+        paymentMethodDisplay = t.direction === 'BANK_TO_CASH' ? 'Bank → Cash' : 'Cash → Bank';
+      } else {
+        paymentMethodDisplay = 'Transfer';
+      }
+
+      return {
+        id: t.id,
+        type: 'transfer' as const,
+        date: t.date,
+        timestamp: t.timestamp,
+        amount: t.amount,
+        category: 'TRANSFER',
+        paymentMethod: paymentMethodDisplay,
+        description: t.description,
+        notes: t.notes || '',
+        synced: t.synced,
+        transferDirection: t.direction,
+        fromAccountId: t.fromAccountId,
+        toAccountId: t.toAccountId
+      };
+    });
 
     return [...expenseTransactions, ...incomeTransactions, ...transferTransactions];
   }, [expenses, income, transfers]);
@@ -158,43 +189,31 @@ const TransactionList: React.FC<TransactionListProps> = ({
   const availableMonths = useMemo(() => {
     const monthSet = new Set<string>();
     allTransactions.forEach(t => {
-      const month = t.date.slice(0, 7); // Extract YYYY-MM
+      const month = t.date.slice(0, 7);
       monthSet.add(month);
     });
-    return Array.from(monthSet).sort((a, b) => b.localeCompare(a)); // Newest first
+    return Array.from(monthSet).sort((a, b) => b.localeCompare(a));
   }, [allTransactions]);
 
-  // Format month for display
   const formatMonth = (monthKey: string) => {
     const [year, month] = monthKey.split('-');
     const date = new Date(parseInt(year), parseInt(month) - 1);
     return new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(date);
   };
 
-  // Detect potential duplicates (same amount + date + category, excluding transfers)
+  // Detect potential duplicates
   const duplicateIds = useMemo(() => {
     const duplicates = new Set<string>();
-
-    // Only check expenses and income for duplicates (transfers are less likely to be duplicates)
     const checkableTransactions = allTransactions.filter(t => t.type !== 'transfer');
-
-    // Group by key: amount + date + category
     const groups = new Map<string, Transaction[]>();
     checkableTransactions.forEach(t => {
       const key = `${t.amount}-${t.date}-${t.category}-${t.type}`;
-      if (!groups.has(key)) {
-        groups.set(key, []);
-      }
+      if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(t);
     });
-
-    // Mark all transactions in groups with more than 1 member as duplicates
     groups.forEach(txns => {
-      if (txns.length > 1) {
-        txns.forEach(t => duplicates.add(t.id));
-      }
+      if (txns.length > 1) txns.forEach(t => duplicates.add(t.id));
     });
-
     return duplicates;
   }, [allTransactions]);
 
@@ -203,22 +222,10 @@ const TransactionList: React.FC<TransactionListProps> = ({
   // Filter and sort transactions
   const filteredTransactions = useMemo(() => {
     let result = [...allTransactions];
-
-    // Apply month filter
-    if (monthFilter !== 'ALL') {
-      result = result.filter(t => t.date.startsWith(monthFilter));
-    }
-
-    // Apply transaction type filter (expenses vs income vs transfers)
-    if (transactionFilter === 'EXPENSES') {
-      result = result.filter(t => t.type === 'expense');
-    } else if (transactionFilter === 'INCOME') {
-      result = result.filter(t => t.type === 'income');
-    } else if (transactionFilter === 'TRANSFERS') {
-      result = result.filter(t => t.type === 'transfer');
-    }
-
-    // Apply search filter
+    if (monthFilter !== 'ALL') result = result.filter(t => t.date.startsWith(monthFilter));
+    if (transactionFilter === 'EXPENSES') result = result.filter(t => t.type === 'expense');
+    else if (transactionFilter === 'INCOME') result = result.filter(t => t.type === 'income');
+    else if (transactionFilter === 'TRANSFERS') result = result.filter(t => t.type === 'transfer');
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(t =>
@@ -227,58 +234,29 @@ const TransactionList: React.FC<TransactionListProps> = ({
         t.notes?.toLowerCase().includes(query)
       );
     }
-
-    // Apply expense type filter (only for expenses)
-    if (typeFilter !== 'ALL') {
-      result = result.filter(t => t.type === 'income' || t.expenseType === typeFilter);
-    }
-
-    // Apply duplicate filter
-    if (duplicateFilter === 'DUPLICATES') {
-      result = result.filter(t => duplicateIds.has(t.id));
-    }
-
-    // Sort by date (newest first), then by time if available
+    if (typeFilter !== 'ALL') result = result.filter(t => t.type === 'income' || t.expenseType === typeFilter);
+    if (duplicateFilter === 'DUPLICATES') result = result.filter(t => duplicateIds.has(t.id));
     result.sort((a, b) => {
       const dateCompare = new Date(b.date).getTime() - new Date(a.date).getTime();
       if (dateCompare !== 0) return dateCompare;
-
-      // Same date: sort by time if available (newest first)
-      if (a.time && b.time) {
-        return b.time.localeCompare(a.time);
-      }
-      // Transactions with time come before those without
+      if (a.time && b.time) return b.time.localeCompare(a.time);
       if (a.time && !b.time) return -1;
       if (!a.time && b.time) return 1;
-
-      // Fall back to timestamp (creation time)
       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
     });
-
-    // Apply limit if specified
-    if (limit) {
-      result = result.slice(0, limit);
-    }
-
+    if (limit) result = result.slice(0, limit);
     return result;
   }, [allTransactions, searchQuery, typeFilter, transactionFilter, monthFilter, duplicateFilter, duplicateIds, limit]);
 
   // Group transactions
   const groupedTransactions = useMemo(() => {
-    if (groupBy === 'none') {
-      return [{ key: 'all', label: 'All Transactions', transactions: filteredTransactions }];
-    }
-
+    if (groupBy === 'none') return [{ key: 'all', label: 'All Transactions', transactions: filteredTransactions }];
     const groups = new Map<string, Transaction[]>();
-
     filteredTransactions.forEach(transaction => {
       const key = groupBy === 'day' ? transaction.date : transaction.category;
-      if (!groups.has(key)) {
-        groups.set(key, []);
-      }
+      if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(transaction);
     });
-
     return Array.from(groups.entries()).map(([key, txns]) => ({
       key,
       label: groupBy === 'day' ? formatDate(key) : key,
@@ -287,29 +265,17 @@ const TransactionList: React.FC<TransactionListProps> = ({
   }, [filteredTransactions, groupBy]);
 
   const getCategoryIcon = (categoryId: string, transactionType: 'expense' | 'income' | 'transfer') => {
-    if (transactionType === 'transfer') {
-      return <ArrowLeftRight className="w-4 h-4" />;
-    }
-
+    if (transactionType === 'transfer') return <ArrowLeftRight className="w-4 h-4" />;
     if (transactionType === 'income') {
       const incomeCat = INCOME_CATEGORIES.find(c => c.id === categoryId);
-      if (incomeCat) {
-        return incomeCat.icon;
-      }
-      return <ArrowUpRight className="w-4 h-4" />;
+      return incomeCat ? incomeCat.icon : <ArrowUpRight className="w-4 h-4" />;
     }
-
     const cat = categories.find(c => c.id === categoryId);
-    if (cat) {
-      return renderCategoryIcon(cat.icon, 'w-4 h-4');
-    }
-    return <ICONS.AlertCircle className="w-4 h-4" />;
+    return cat ? renderCategoryIcon(cat.icon, 'w-4 h-4') : <ICONS.AlertCircle className="w-4 h-4" />;
   };
 
   const getCategoryName = (categoryId: string, transactionType: 'expense' | 'income' | 'transfer') => {
-    if (transactionType === 'transfer') {
-      return 'Transfer';
-    }
+    if (transactionType === 'transfer') return 'Transfer';
     if (transactionType === 'income') {
       const incomeCat = INCOME_CATEGORIES.find(c => c.id === categoryId);
       return incomeCat?.name || categoryId;
@@ -321,84 +287,38 @@ const TransactionList: React.FC<TransactionListProps> = ({
   const startEdit = (transaction: Transaction) => {
     setEditingId(transaction.id);
     setEditingType(transaction.type);
-
     if (transaction.type === 'expense') {
       const expense = expenses.find(e => e.id === transaction.id);
-      if (expense) {
-        setEditForm({
-          amount: expense.amount,
-          store: expense.store,
-          category: expense.category,
-          type: expense.type,
-          date: expense.date,
-          paymentMethod: expense.paymentMethod,
-          notes: expense.notes
-        });
-      }
+      if (expense) setEditForm({ amount: expense.amount, store: expense.store, category: expense.category, type: expense.type, date: expense.date, paymentMethod: expense.paymentMethod, notes: expense.notes });
     } else if (transaction.type === 'income') {
       const inc = income.find(i => i.id === transaction.id);
-      if (inc) {
-        setEditForm({
-          amount: inc.amount,
-          description: inc.description,
-          category: inc.category,
-          date: inc.date,
-          paymentMethod: inc.paymentMethod,
-          notes: inc.notes
-        });
-      }
+      if (inc) setEditForm({ amount: inc.amount, description: inc.description, category: inc.category, date: inc.date, paymentMethod: inc.paymentMethod, notes: inc.notes });
     } else if (transaction.type === 'transfer') {
       const transfer = transfers.find(t => t.id === transaction.id);
-      if (transfer) {
-        setEditForm({
-          amount: transfer.amount,
-          description: transfer.description,
-          direction: transfer.direction,
-          date: transfer.date,
-          notes: transfer.notes
-        });
-      }
+      if (transfer) setEditForm({ amount: transfer.amount, description: transfer.description, direction: transfer.direction, fromAccountId: transfer.fromAccountId, toAccountId: transfer.toAccountId, date: transfer.date, notes: transfer.notes });
     }
   };
 
   const saveEdit = () => {
     if (!editingId) return;
-
-    if (editingType === 'expense' && onEditExpense) {
-      onEditExpense(editingId, editForm as Partial<Expense>);
-    } else if (editingType === 'income' && onEditIncome) {
-      onEditIncome(editingId, editForm as Partial<Income>);
-    } else if (editingType === 'transfer' && onEditTransfer) {
-      onEditTransfer(editingId, editForm as Partial<Transfer>);
-    }
-
+    if (editingType === 'expense' && onEditExpense) onEditExpense(editingId, editForm as Partial<Expense>);
+    else if (editingType === 'income' && onEditIncome) onEditIncome(editingId, editForm as Partial<Income>);
+    else if (editingType === 'transfer' && onEditTransfer) onEditTransfer(editingId, editForm as Partial<Transfer>);
     setEditingId(null);
     setEditForm({});
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditForm({});
-  };
+  const cancelEdit = () => { setEditingId(null); setEditForm({}); };
 
   const handleDelete = (transaction: Transaction) => {
-    if (transaction.type === 'expense') {
-      onDeleteExpense(transaction.id);
-    } else if (transaction.type === 'income' && onDeleteIncome) {
-      onDeleteIncome(transaction.id);
-    } else if (transaction.type === 'transfer' && onDeleteTransfer) {
-      onDeleteTransfer(transaction.id);
-    }
+    if (transaction.type === 'expense') onDeleteExpense(transaction.id);
+    else if (transaction.type === 'income' && onDeleteIncome) onDeleteIncome(transaction.id);
+    else if (transaction.type === 'transfer' && onDeleteTransfer) onDeleteTransfer(transaction.id);
   };
 
-  const totalFiltered = filteredTransactions.reduce((sum, t) => {
-    return sum + (t.type === 'income' ? t.amount : -t.amount);
-  }, 0);
-
+  const totalFiltered = filteredTransactions.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
   const expenseTotal = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
   const incomeTotal = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-
-  // Compact mode for preview (no controls)
   const isPreviewMode = limit !== undefined;
 
   return (
@@ -412,15 +332,12 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 <button
                   key={f}
                   onClick={() => setTransactionFilter(f)}
-                  className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${
+                  className={`flex-1 py-2 text-xs font-medium rounded-lg transition-colors ${
                     transactionFilter === f
-                      ? f === 'INCOME'
-                        ? 'bg-emerald-600 text-white shadow-sm'
-                        : f === 'EXPENSES'
-                          ? isDark ? 'bg-rose-600 text-white shadow-sm' : 'bg-rose-500 text-white shadow-sm'
-                          : f === 'TRANSFERS'
-                            ? 'bg-blue-600 text-white shadow-sm'
-                            : isDark ? 'bg-zinc-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
+                      ? f === 'INCOME' ? 'bg-emerald-600 text-white'
+                        : f === 'EXPENSES' ? 'bg-rose-600 text-white'
+                          : f === 'TRANSFERS' ? 'bg-blue-600 text-white'
+                            : isDark ? 'bg-zinc-700 text-white' : 'bg-white text-gray-900 shadow-sm'
                       : isDark ? 'text-zinc-500 hover:text-zinc-400' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
@@ -443,7 +360,6 @@ const TransactionList: React.FC<TransactionListProps> = ({
                 />
                 <ICONS.History className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
               </div>
-              {/* Month Filter */}
               {availableMonths.length > 1 && (
                 <select
                   value={monthFilter}
@@ -458,35 +374,34 @@ const TransactionList: React.FC<TransactionListProps> = ({
               )}
             </div>
 
-            {/* Type Filter Chips (only show when viewing expenses or all) */}
+            {/* Type Filter Chips */}
             {transactionFilter !== 'INCOME' && (
               <div className="flex gap-2 flex-wrap">
                 {(['ALL', 'NEED', 'WANT', 'SAVE', 'DEBT'] as const).map((t) => (
                   <button
                     key={t}
                     onClick={() => setTypeFilter(t)}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                       typeFilter === t
                         ? t === 'ALL'
                           ? isDark ? 'bg-white text-black' : 'bg-gray-900 text-white'
-                          : getTypeColor(t) + ' border'
+                          : `${getTypeColor(t)} ${isDark ? 'bg-zinc-800' : 'bg-gray-100'}`
                         : isDark ? 'bg-zinc-900 text-zinc-500 border border-zinc-800' : 'bg-gray-100 text-gray-500 border border-gray-200'
                     }`}
                   >
                     {t}
                   </button>
                 ))}
-                {/* Duplicate Filter */}
                 {duplicateCount > 0 && (
                   <button
                     onClick={() => setDuplicateFilter(duplicateFilter === 'ALL' ? 'DUPLICATES' : 'ALL')}
-                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
                       duplicateFilter === 'DUPLICATES'
-                        ? 'bg-orange-500 text-white border border-orange-500'
-                        : isDark ? 'bg-orange-500/10 text-orange-500 border border-orange-500/30 hover:bg-orange-500/20' : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'
+                        ? 'bg-orange-500 text-white'
+                        : isDark ? 'bg-zinc-900 text-orange-500 border border-zinc-800' : 'bg-gray-100 text-orange-600 border border-gray-200'
                     }`}
                   >
-                    ⚠️ {duplicateCount} Dupes
+                    {duplicateCount} Dupes
                   </button>
                 )}
               </div>
@@ -495,37 +410,33 @@ const TransactionList: React.FC<TransactionListProps> = ({
             {/* Group By Controls */}
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <div className="flex items-center gap-2">
-                <span className={`hidden sm:inline text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Group:</span>
+                <span className={`hidden sm:inline text-xs font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Group</span>
                 <div className={`flex p-0.5 rounded-lg ${isDark ? 'bg-zinc-900' : 'bg-gray-100'}`}>
                   {(['day', 'category', 'none'] as const).map((g) => (
                     <button
                       key={g}
                       onClick={() => setGroupBy(g)}
-                      className={`px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                         groupBy === g
                           ? isDark ? 'bg-zinc-700 text-white' : 'bg-white text-gray-900 shadow-sm'
                           : isDark ? 'text-zinc-500' : 'text-gray-500'
                       }`}
                     >
-                      {g === 'none' ? 'Flat' : g}
+                      {g === 'none' ? 'Flat' : g.charAt(0).toUpperCase() + g.slice(1)}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className={`text-[10px] font-bold whitespace-nowrap ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
-                {monthFilter !== 'ALL' && <span className="text-blue-400">{formatMonth(monthFilter)} • </span>}
+              <div className={`text-xs font-medium whitespace-nowrap ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+                {monthFilter !== 'ALL' && <span className="text-blue-400">{formatMonth(monthFilter)} · </span>}
                 {filteredTransactions.length} entries
                 {transactionFilter === 'ALL' && income.length > 0 && (
                   <span className={totalFiltered >= 0 ? 'text-emerald-500' : 'text-rose-500'}>
-                    {' '}• Net: {totalFiltered >= 0 ? '+' : ''}¥{totalFiltered.toLocaleString()}
+                    {' '}· Net: {totalFiltered >= 0 ? '+' : ''}¥{totalFiltered.toLocaleString()}
                   </span>
                 )}
-                {transactionFilter === 'EXPENSES' && (
-                  <span className="text-rose-400"> • ¥{expenseTotal.toLocaleString()}</span>
-                )}
-                {transactionFilter === 'INCOME' && (
-                  <span className="text-emerald-400"> • ¥{incomeTotal.toLocaleString()}</span>
-                )}
+                {transactionFilter === 'EXPENSES' && <span className="text-rose-400"> · ¥{expenseTotal.toLocaleString()}</span>}
+                {transactionFilter === 'INCOME' && <span className="text-emerald-400"> · ¥{incomeTotal.toLocaleString()}</span>}
               </div>
             </div>
           </div>
@@ -534,12 +445,8 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
       {isPreviewMode && (
         <div className="flex items-center justify-between px-1">
-          <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
-            Recent
-          </h3>
-          <span className={`text-[10px] font-bold ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-            {filteredTransactions.length} entries
-          </span>
+          <h3 className={`text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Recent</h3>
+          <span className={`text-xs ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{filteredTransactions.length} entries</span>
         </div>
       )}
 
@@ -548,25 +455,18 @@ const TransactionList: React.FC<TransactionListProps> = ({
         {groupedTransactions.length > 0 && groupedTransactions.some(g => g.transactions.length > 0) ? (
           groupedTransactions.filter(g => g.transactions.length > 0).map((group) => (
             <div key={group.key} className="space-y-2">
-              {/* Group Header */}
               {(groupBy === 'day' || (!isPreviewMode && groupBy !== 'none')) && (
                 <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className={`text-xs font-bold ${isDark ? 'text-zinc-400' : 'text-gray-600'}`}>
-                      {groupBy === 'category' ? group.label : group.label}
-                    </h4>
-                  </div>
-                  <span className={`text-[10px] font-bold ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                  <h4 className={`text-xs font-bold ${isDark ? 'text-zinc-400' : 'text-gray-600'}`}>{group.label}</h4>
+                  <span className={`text-xs font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                     {(() => {
-                      const groupNet = group.transactions.reduce((sum, t) =>
-                        sum + (t.type === 'income' ? t.amount : -t.amount), 0);
+                      const groupNet = group.transactions.reduce((sum, t) => sum + (t.type === 'income' ? t.amount : -t.amount), 0);
                       return groupNet >= 0 ? `+¥${groupNet.toLocaleString()}` : `-¥${Math.abs(groupNet).toLocaleString()}`;
                     })()}
                   </span>
                 </div>
               )}
 
-              {/* Transactions */}
               <div className="space-y-2">
                 {group.transactions.map((transaction) => {
                   const isExpanded = expandedId === transaction.id;
@@ -577,84 +477,79 @@ const TransactionList: React.FC<TransactionListProps> = ({
                   return (
                     <div
                       key={transaction.id}
-                      className={`rounded-2xl overflow-hidden transition-all ${
+                      className={`rounded-xl overflow-hidden transition-colors ${
                         isIncome
-                          ? isDark ? 'bg-emerald-950/20 border border-emerald-900/30' : 'bg-emerald-50 border border-emerald-200'
+                          ? isDark ? 'bg-emerald-950 border border-emerald-900' : 'bg-emerald-50 border border-emerald-200'
                           : isTransfer
-                            ? isDark ? 'bg-blue-950/20 border border-blue-900/30' : 'bg-blue-50 border border-blue-200'
-                            : isDark ? 'bg-zinc-900/40 border border-zinc-800/40' : 'bg-white border border-gray-200'
+                            ? isDark ? 'bg-blue-950 border border-blue-900' : 'bg-blue-50 border border-blue-200'
+                            : isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'
                       }`}
                     >
                       {/* Main Row */}
                       <div
-                        className={`p-4 flex items-center justify-between gap-3 cursor-pointer group ${
-                          isIncome
-                            ? isDark ? 'active:bg-emerald-900/30' : 'active:bg-emerald-100'
-                            : isTransfer
-                              ? isDark ? 'active:bg-blue-900/30' : 'active:bg-blue-100'
+                        className={`p-4 flex items-center justify-between gap-3 cursor-pointer ${
+                          isIncome ? isDark ? 'active:bg-emerald-900' : 'active:bg-emerald-100'
+                            : isTransfer ? isDark ? 'active:bg-blue-900' : 'active:bg-blue-100'
                               : isDark ? 'active:bg-zinc-800' : 'active:bg-gray-50'
                         }`}
                         onClick={() => !isEditing && setExpandedId(isExpanded ? null : transaction.id)}
                       >
                         <div className="flex items-center gap-3 min-w-0 flex-1">
                           <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center ${
-                            isIncome
-                              ? isDark ? 'bg-emerald-900/50 text-emerald-400 border border-emerald-800/50' : 'bg-emerald-100 text-emerald-600 border border-emerald-200'
-                              : isTransfer
-                                ? isDark ? 'bg-blue-900/50 text-blue-400 border border-blue-800/50' : 'bg-blue-100 text-blue-600 border border-blue-200'
-                                : isDark ? 'bg-zinc-800 text-zinc-400 border border-zinc-700/50' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                            isIncome ? isDark ? 'bg-emerald-900 text-emerald-400' : 'bg-emerald-100 text-emerald-600'
+                              : isTransfer ? isDark ? 'bg-blue-900 text-blue-400' : 'bg-blue-100 text-blue-600'
+                                : isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-gray-100 text-gray-500'
                           }`}>
                             {getCategoryIcon(transaction.category, transaction.type)}
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              <p className={`font-bold leading-tight truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                              <p className={`font-semibold leading-tight truncate ${isDark ? 'text-white' : 'text-gray-900'}`}>
                                 {transaction.description}
                               </p>
                               {isIncome ? (
-                                <span className="shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border text-emerald-500 bg-emerald-500/10 border-emerald-500/20">
-                                  INCOME
-                                </span>
+                                <span className="shrink-0 text-xs font-medium text-emerald-500">Income</span>
                               ) : isTransfer ? (
-                                <span className="shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border text-blue-500 bg-blue-500/10 border-blue-500/20">
-                                  {transaction.transferDirection === 'BANK_TO_CASH' ? 'ATM' : 'DEPOSIT'}
+                                <span className="shrink-0 text-xs font-medium text-blue-500">
+                                  {(() => {
+                                    const toIsCash = transaction.toAccountId === 'cash' || transaction.transferDirection === 'BANK_TO_CASH';
+                                    const fromIsCash = transaction.fromAccountId === 'cash' || transaction.transferDirection === 'CASH_TO_BANK';
+                                    if (toIsCash && !fromIsCash) return 'ATM';
+                                    if (fromIsCash && !toIsCash) return 'Deposit';
+                                    return 'Transfer';
+                                  })()}
                                 </span>
                               ) : transaction.expenseType && (
-                                <span className={`shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border ${getTypeColor(transaction.expenseType)}`}>
-                                  {transaction.expenseType}
+                                <span className={`shrink-0 text-xs font-medium ${getTypeColor(transaction.expenseType)}`}>
+                                  {getTypeLabel(transaction.expenseType)}
                                 </span>
                               )}
                               {duplicateIds.has(transaction.id) && (
-                                <span className="shrink-0 text-[8px] font-black uppercase px-1.5 py-0.5 rounded border text-orange-500 bg-orange-500/10 border-orange-500/20" title="Potential duplicate">
-                                  ⚠️ DUPE
+                                <span className="shrink-0 text-xs font-medium text-orange-500" title="Potential duplicate">Dupe</span>
+                              )}
+                              {futureBalanceWarnings.has(transaction.id) && (
+                                <span className="shrink-0 text-xs font-medium text-rose-500 flex items-center gap-0.5" title={`Insufficient ${futureBalanceWarnings.get(transaction.id)?.accountName} balance`}>
+                                  <AlertTriangle className="w-3 h-3" /> Low bal
                                 </span>
                               )}
                             </div>
                             <div className="flex items-center gap-1.5 mt-1 overflow-hidden">
                               {groupBy !== 'day' && (
-                                <span className={`shrink-0 text-[10px] font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
-                                  {formatDate(transaction.date)}
-                                </span>
+                                <span className={`shrink-0 text-xs ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>{formatDate(transaction.date)}</span>
                               )}
                               {groupBy !== 'category' && (
-                                <span className={`truncate text-[10px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                                  {groupBy === 'day' ? getCategoryName(transaction.category, transaction.type) : `• ${getCategoryName(transaction.category, transaction.type)}`}
+                                <span className={`truncate text-xs ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+                                  {groupBy === 'day' ? getCategoryName(transaction.category, transaction.type) : `· ${getCategoryName(transaction.category, transaction.type)}`}
                                 </span>
                               )}
-                              <span className={`shrink-0 text-[10px] font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                                • {transaction.paymentMethod}
-                              </span>
-                              {transaction.notes && (
-                                <span className={`shrink-0 text-[10px] ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>📝</span>
-                              )}
-                              {!transaction.synced && (
-                                <ICONS.CloudOff className="shrink-0 w-3 h-3 text-amber-500" />
-                              )}
+                              <span className={`shrink-0 text-xs ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>· {getPaymentMethodDisplay(transaction.paymentMethod, bankAccounts)}</span>
+                              {transaction.notes && <span className={`shrink-0 text-xs ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>+notes</span>}
+                              {!transaction.synced && <ICONS.CloudOff className="shrink-0 w-3 h-3 text-amber-500" />}
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <p className={`font-bold tracking-tight text-base whitespace-nowrap ${
+                          <p className={`font-semibold text-base whitespace-nowrap ${
                             isIncome ? (isDark ? 'text-emerald-400' : 'text-emerald-600')
                               : isTransfer ? (isDark ? 'text-blue-400' : 'text-blue-600')
                               : (isDark ? 'text-white' : 'text-gray-900')
@@ -668,137 +563,78 @@ const TransactionList: React.FC<TransactionListProps> = ({
                       {/* Expanded Details / Edit Form */}
                       {isExpanded && (
                         <div className={`border-t ${
-                          isIncome
-                            ? isDark ? 'border-emerald-900/30 bg-emerald-950/30' : 'border-emerald-100 bg-emerald-50/50'
-                            : isTransfer
-                              ? isDark ? 'border-blue-900/30 bg-blue-950/30' : 'border-blue-100 bg-blue-50/50'
-                              : isDark ? 'border-zinc-800 bg-zinc-900/60' : 'border-gray-100 bg-gray-50'
+                          isIncome ? isDark ? 'border-emerald-900 bg-emerald-950' : 'border-emerald-100 bg-emerald-50/50'
+                            : isTransfer ? isDark ? 'border-blue-900 bg-blue-950' : 'border-blue-100 bg-blue-50/50'
+                              : isDark ? 'border-zinc-800 bg-zinc-900' : 'border-gray-100 bg-gray-50'
                         }`}>
                           {isEditing ? (
-                            /* Edit Form */
                             <div className="p-4 space-y-3">
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Amount</label>
-                                  <input
-                                    type="number"
-                                    value={(editForm as any).amount || ''}
-                                    onChange={(e) => setEditForm({ ...editForm, amount: Number(e.target.value) })}
-                                    className={`w-full rounded-lg py-2 px-3 text-sm font-bold outline-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
-                                  />
+                                  <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Amount</label>
+                                  <input type="number" value={(editForm as any).amount || ''} onChange={(e) => setEditForm({ ...editForm, amount: Number(e.target.value) })} className={`w-full rounded-lg py-2 px-3 text-sm font-semibold outline-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`} />
                                 </div>
                                 <div>
-                                  <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Date</label>
-                                  <input
-                                    type="date"
-                                    value={(editForm as any).date || ''}
-                                    onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
-                                    className={`w-full rounded-lg py-2 px-3 text-sm font-medium outline-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
-                                  />
+                                  <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Date</label>
+                                  <input type="date" value={(editForm as any).date || ''} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} className={`w-full rounded-lg py-2 px-3 text-sm font-medium outline-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`} />
                                 </div>
                               </div>
                               <div>
-                                <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                                  {editingType === 'expense' ? 'Store' : 'Description'}
-                                </label>
-                                <input
-                                  type="text"
-                                  value={editingType === 'expense' ? (editForm as Partial<Expense>).store || '' : (editForm as Partial<Income> | Partial<Transfer>).description || ''}
-                                  onChange={(e) => setEditForm({
-                                    ...editForm,
-                                    [editingType === 'expense' ? 'store' : 'description']: e.target.value
-                                  })}
-                                  className={`w-full rounded-lg py-2 px-3 text-sm font-medium outline-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
-                                />
+                                <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>{editingType === 'expense' ? 'Store' : 'Description'}</label>
+                                <input type="text" value={editingType === 'expense' ? (editForm as Partial<Expense>).store || '' : (editForm as Partial<Income> | Partial<Transfer>).description || ''} onChange={(e) => setEditForm({ ...editForm, [editingType === 'expense' ? 'store' : 'description']: e.target.value })} className={`w-full rounded-lg py-2 px-3 text-sm font-medium outline-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`} />
                               </div>
                               {editingType === 'transfer' ? (
-                                /* Transfer-specific fields */
-                                <div>
-                                  <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Direction</label>
-                                  <select
-                                    value={(editForm as Partial<Transfer>).direction || ''}
-                                    onChange={(e) => setEditForm({ ...editForm, direction: e.target.value as TransferDirection })}
-                                    className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
-                                  >
-                                    {TRANSFER_DIRECTIONS.map(dir => (
-                                      <option key={dir.id} value={dir.id}>{dir.name} ({dir.description})</option>
-                                    ))}
-                                  </select>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>From</label>
+                                    <select value={(editForm as Partial<Transfer>).fromAccountId || ''} onChange={(e) => setEditForm({ ...editForm, fromAccountId: e.target.value })} className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
+                                      <option value="cash">Cash</option>
+                                      {bankAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}{acc.isDefault ? ' *' : ''}</option>)}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>To</label>
+                                    <select value={(editForm as Partial<Transfer>).toAccountId || ''} onChange={(e) => setEditForm({ ...editForm, toAccountId: e.target.value })} className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
+                                      <option value="cash">Cash</option>
+                                      {bankAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}{acc.isDefault ? ' *' : ''}</option>)}
+                                    </select>
+                                  </div>
                                 </div>
                               ) : (
-                                /* Expense/Income fields */
                                 <div className={`grid ${editingType === 'expense' ? 'grid-cols-3' : 'grid-cols-2'} gap-3`}>
                                   <div>
-                                    <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Category</label>
-                                    <select
-                                      value={(editForm as any).category || ''}
-                                      onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
-                                      className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
-                                    >
-                                      {editingType === 'expense' ? (
-                                        categories.map(cat => (
-                                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                        ))
-                                      ) : (
-                                        INCOME_CATEGORIES.map(cat => (
-                                          <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                        ))
-                                      )}
+                                    <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Category</label>
+                                    <select value={(editForm as any).category || ''} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
+                                      {editingType === 'expense' ? categories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>) : INCOME_CATEGORIES.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
                                     </select>
                                   </div>
                                   {editingType === 'expense' && (
                                     <div>
-                                      <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Type</label>
-                                      <select
-                                        value={(editForm as Partial<Expense>).type || ''}
-                                        onChange={(e) => setEditForm({ ...editForm, type: e.target.value as ExpenseType })}
-                                        className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
-                                      >
-                                        <option value="NEED">NEED</option>
-                                        <option value="WANT">WANT</option>
-                                        <option value="SAVE">SAVE</option>
-                                        <option value="DEBT">DEBT</option>
+                                      <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Type</label>
+                                      <select value={(editForm as Partial<Expense>).type || ''} onChange={(e) => setEditForm({ ...editForm, type: e.target.value as ExpenseType })} className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
+                                        <option value="NEED">Need</option>
+                                        <option value="WANT">Want</option>
+                                        <option value="SAVE">Save</option>
+                                        <option value="DEBT">Debt</option>
                                       </select>
                                     </div>
                                   )}
                                   <div>
-                                    <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Payment</label>
-                                    <select
-                                      value={(editForm as any).paymentMethod || ''}
-                                      onChange={(e) => setEditForm({ ...editForm, paymentMethod: e.target.value as PaymentMethod })}
-                                      className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}
-                                    >
+                                    <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Payment</label>
+                                    <select value={(editForm as any).paymentMethod || ''} onChange={(e) => setEditForm({ ...editForm, paymentMethod: e.target.value as PaymentMethod })} className={`w-full rounded-lg py-2 px-2 text-sm font-medium outline-none appearance-none ${isDark ? 'bg-zinc-800 text-white' : 'bg-white text-gray-900 border border-gray-200'}`}>
                                       {editingType === 'expense' ? (
                                         <>
                                           <option value="Cash">Cash</option>
                                           {bankAccounts.length > 0 ? (
-                                            <>
-                                              <option value="Card">Card (Default Bank)</option>
-                                              {bankAccounts.map(acc => (
-                                                <option key={acc.id} value={`Card:${acc.id}`}>
-                                                  Card: {acc.name}{acc.isDefault ? ' ★' : ''}
-                                                </option>
-                                              ))}
-                                            </>
+                                            <>{bankAccounts.map(acc => <option key={acc.id} value={`Card:${acc.id}`}>Card: {acc.name}{acc.isDefault ? ' *' : ''}</option>)}</>
                                           ) : (
-                                            <>
-                                              <option value="Card">Card</option>
-                                              <option value="Bank">Bank</option>
-                                            </>
+                                            <><option value="Card">Card</option><option value="Bank">Bank</option></>
                                           )}
                                         </>
                                       ) : (
                                         <>
                                           <option value="Cash">Cash</option>
-                                          {bankAccounts.length > 0 ? (
-                                            bankAccounts.map(acc => (
-                                              <option key={acc.id} value={acc.id}>
-                                                {acc.name}{acc.isDefault ? ' ★' : ''}
-                                              </option>
-                                            ))
-                                          ) : (
-                                            <option value="Bank">Bank</option>
-                                          )}
+                                          {bankAccounts.length > 0 ? bankAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}{acc.isDefault ? ' *' : ''}</option>) : <option value="Bank">Bank</option>}
                                         </>
                                       )}
                                     </select>
@@ -806,81 +642,66 @@ const TransactionList: React.FC<TransactionListProps> = ({
                                 </div>
                               )}
                               <div>
-                                <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Notes</label>
-                                <textarea
-                                  value={(editForm as any).notes || ''}
-                                  onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                                  rows={2}
-                                  className={`w-full rounded-lg py-2 px-3 text-sm font-medium outline-none resize-none ${isDark ? 'bg-zinc-800 text-white placeholder:text-zinc-600' : 'bg-white text-gray-900 border border-gray-200 placeholder:text-gray-400'}`}
-                                  placeholder="Add notes..."
-                                />
+                                <label className={`block text-xs font-medium mb-1 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Notes</label>
+                                <textarea value={(editForm as any).notes || ''} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} className={`w-full rounded-lg py-2 px-3 text-sm font-medium outline-none resize-none ${isDark ? 'bg-zinc-800 text-white placeholder:text-zinc-600' : 'bg-white text-gray-900 border border-gray-200 placeholder:text-gray-400'}`} placeholder="Add notes..." />
                               </div>
                               <div className="flex gap-2 pt-1">
-                                <button
-                                  onClick={saveEdit}
-                                  className={`flex-1 py-2 rounded-lg text-xs font-bold ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
-                                >
-                                  Save Changes
-                                </button>
-                                <button
-                                  onClick={cancelEdit}
-                                  className={`px-4 py-2 rounded-lg text-xs font-bold ${isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-gray-100 text-gray-600'}`}
-                                >
-                                  Cancel
-                                </button>
+                                <button onClick={saveEdit} className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`}>Save Changes</button>
+                                <button onClick={cancelEdit} className={`px-4 py-2 rounded-lg text-xs font-medium transition-colors ${isDark ? 'bg-zinc-800 text-zinc-400' : 'bg-gray-100 text-gray-600'}`}>Cancel</button>
                               </div>
                             </div>
                           ) : (
-                            /* View Details */
                             <div className="p-4 space-y-3">
-                              {/* Full Date & Time */}
                               <div className="flex items-center gap-2">
                                 <ICONS.Calendar className={`w-3.5 h-3.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
                                 <span className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-gray-600'}`}>
-                                  {formatDateFull(transaction.date)}
-                                  {transaction.time && ` at ${transaction.time}`}
+                                  {formatDateFull(transaction.date)}{transaction.time && ` at ${transaction.time}`}
                                 </span>
                               </div>
 
-                              {/* Notes */}
+                              {futureBalanceWarnings.has(transaction.id) && (() => {
+                                const warning = futureBalanceWarnings.get(transaction.id)!;
+                                return (
+                                  <div className={`p-3 rounded-xl ${isDark ? 'bg-rose-950 border border-rose-900' : 'bg-rose-50 border border-rose-200'}`}>
+                                    <div className="flex items-start gap-2">
+                                      <AlertTriangle className={`w-4 h-4 mt-0.5 shrink-0 ${isDark ? 'text-rose-400' : 'text-rose-500'}`} />
+                                      <div>
+                                        <p className={`text-xs font-semibold ${isDark ? 'text-rose-300' : 'text-rose-700'}`}>Insufficient funds in {warning.accountName}</p>
+                                        <p className={`text-xs mt-1 ${isDark ? 'text-rose-400' : 'text-rose-600'}`}>
+                                          Shortfall of ¥{warning.shortfall.toLocaleString()} on {warning.date}. Projected: ¥{warning.projectedBalance.toLocaleString()}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+
                               {transaction.notes && (
-                                <div className={`p-3 rounded-xl ${isDark ? 'bg-zinc-800/50' : 'bg-white border border-gray-200'}`}>
-                                  <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Notes</p>
-                                  <p className={`text-sm whitespace-pre-wrap ${isDark ? 'text-zinc-300' : 'text-gray-700'}`}>
-                                    {transaction.notes}
-                                  </p>
+                                <div className={`p-3 rounded-xl ${isDark ? 'bg-zinc-800' : 'bg-white border border-gray-200'}`}>
+                                  <p className={`text-xs font-medium mb-1 ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>Notes</p>
+                                  <p className={`text-sm whitespace-pre-wrap ${isDark ? 'text-zinc-300' : 'text-gray-700'}`}>{transaction.notes}</p>
                                 </div>
                               )}
 
-                              {/* Source & Sync Status */}
-                              <div className="flex items-center gap-4 text-[10px]">
+                              <div className="flex items-center gap-4 text-xs">
                                 {transaction.type === 'expense' && (
-                                  <span className={`font-medium ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
-                                    Source: {transaction.source === 'receipt' ? '📷 Receipt scan' : '✏️ Manual entry'}
+                                  <span className={`font-medium ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+                                    Source: {transaction.source === 'receipt' ? 'Receipt scan' : 'Manual entry'}
                                   </span>
                                 )}
                                 <span className={transaction.synced ? 'text-emerald-500' : 'text-amber-500'}>
-                                  {transaction.synced ? '✓ Synced' : '○ Pending sync'}
+                                  {transaction.synced ? 'Synced' : 'Pending sync'}
                                 </span>
                               </div>
 
-                              {/* Action Buttons */}
                               <div className="flex gap-2 pt-1">
                                 {((transaction.type === 'expense' && onEditExpense) || (transaction.type === 'income' && onEditIncome) || (transaction.type === 'transfer' && onEditTransfer)) && (
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); startEdit(transaction); }}
-                                    className={`flex-1 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 ${isDark ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}
-                                  >
-                                    <ICONS.Settings className="w-3.5 h-3.5" />
-                                    Edit
+                                  <button onClick={(e) => { e.stopPropagation(); startEdit(transaction); }} className={`flex-1 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${isDark ? 'bg-zinc-800 text-white hover:bg-zinc-700' : 'bg-gray-100 text-gray-900 hover:bg-gray-200'}`}>
+                                    <ICONS.Settings className="w-3.5 h-3.5" /> Edit
                                   </button>
                                 )}
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); handleDelete(transaction); }}
-                                  className={`px-4 py-2 rounded-lg text-xs font-bold flex items-center justify-center gap-2 ${isDark ? 'bg-rose-500/10 text-rose-500 hover:bg-rose-500/20' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}
-                                >
-                                  <ICONS.AlertCircle className="w-3.5 h-3.5" />
-                                  Delete
+                                <button onClick={(e) => { e.stopPropagation(); handleDelete(transaction); }} className={`px-4 py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-colors ${isDark ? 'bg-rose-950 text-rose-500 hover:bg-rose-900' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'}`}>
+                                  <ICONS.AlertCircle className="w-3.5 h-3.5" /> Delete
                                 </button>
                               </div>
                             </div>

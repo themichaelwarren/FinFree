@@ -56,16 +56,16 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip, isDark = tr
   };
 
   const inputClass = `w-full border-none rounded-xl py-3 px-4 text-sm focus:ring-2 outline-none ${isDark ? 'bg-zinc-800 text-white focus:ring-white/20 placeholder:text-zinc-500' : 'bg-gray-100 text-gray-900 focus:ring-gray-300 placeholder:text-gray-400'}`;
-  const buttonClass = `w-full font-semibold py-4 rounded-2xl transition-all active:scale-[0.98] ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`;
-  const secondaryButtonClass = `w-full font-medium py-3 rounded-xl transition-all ${isDark ? 'text-zinc-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`;
+  const buttonClass = `w-full font-semibold py-4 rounded-xl transition-colors ${isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'}`;
+  const secondaryButtonClass = `w-full font-medium py-3 rounded-xl transition-colors ${isDark ? 'text-zinc-400 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`;
 
   const renderStep = () => {
     switch (step) {
       case 'welcome':
         return (
           <>
-            <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 ${isDark ? 'bg-white/5 border border-white/10' : 'bg-gray-100 border border-gray-200'}`}>
-              <span className="text-4xl">💰</span>
+            <div className={`w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-gray-100 border border-gray-200'}`}>
+              <span className="text-3xl">💰</span>
             </div>
             <h1 className={`text-3xl font-bold mb-4 tracking-tight ${isDark ? 'text-white' : 'text-gray-900'}`}>
               Welcome to FinFree
@@ -85,7 +85,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip, isDark = tr
       case 'client-id':
         return (
           <>
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${isDark ? 'bg-white/5 border border-white/10' : 'bg-gray-100 border border-gray-200'}`}>
+            <div className={`w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-6 ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-gray-100 border border-gray-200'}`}>
               <ICONS.Settings className={`w-8 h-8 ${isDark ? 'text-zinc-300' : 'text-gray-600'}`} />
             </div>
             <h2 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -128,7 +128,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip, isDark = tr
       case 'spreadsheet':
         return (
           <>
-            <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${isDark ? 'bg-white/5 border border-white/10' : 'bg-gray-100 border border-gray-200'}`}>
+            <div className={`w-14 h-14 rounded-xl flex items-center justify-center mx-auto mb-6 ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-gray-100 border border-gray-200'}`}>
               <ICONS.Table className={`w-8 h-8 ${isDark ? 'text-zinc-300' : 'text-gray-600'}`} />
             </div>
             <h2 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -164,7 +164,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip, isDark = tr
       case 'complete':
         return (
           <>
-            <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`}>
+            <div className={`w-16 h-16 rounded-xl flex items-center justify-center mx-auto mb-6 ${isDark ? 'bg-emerald-500/20' : 'bg-emerald-100'}`}>
               <ICONS.CheckCircle2 className={`w-10 h-10 ${isDark ? 'text-emerald-400' : 'text-emerald-600'}`} />
             </div>
             <h2 className={`text-2xl font-bold mb-3 ${isDark ? 'text-white' : 'text-gray-900'}`}>
@@ -192,7 +192,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSkip, isDark = tr
   };
 
   return (
-    <div className={`fixed inset-0 z-[70] flex items-center justify-center p-6 ${isDark ? 'bg-black' : 'bg-white'}`}>
+    <div className={`fixed inset-0 z-[70] flex items-center justify-center p-6 ${isDark ? 'bg-zinc-950' : 'bg-white'}`}>
       <div className="max-w-sm w-full text-center">
         {renderStep()}
       </div>

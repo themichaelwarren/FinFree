@@ -33,12 +33,19 @@ export const resolveAccountId = (paymentMethod: string): string => {
   if (paymentMethod === 'Cash') return 'cash';
   if (paymentMethod === 'Bank' || paymentMethod === 'Card') return 'bank_default';
   if (paymentMethod.startsWith('Card:')) return paymentMethod.split(':')[1];
+  if (paymentMethod.startsWith('Bank:')) return paymentMethod.split(':')[1];
+  // Legacy: bare account ID (e.g., 'bank_default')
   return paymentMethod;
 };
 
 // Helper: Check if payment method is a card payment
 export const isCardPayment = (paymentMethod: string): boolean => {
   return paymentMethod === 'Card' || paymentMethod.startsWith('Card:');
+};
+
+// Helper: Check if payment method is a bank transfer
+export const isBankPayment = (paymentMethod: string): boolean => {
+  return paymentMethod === 'Bank' || paymentMethod.startsWith('Bank:');
 };
 
 // Helper: Get display name for payment method
@@ -52,6 +59,13 @@ export const getPaymentMethodDisplay = (paymentMethod: string, accounts: BankAcc
     return `Card (${account?.name || 'Unknown'})`;
   }
 
+  if (paymentMethod.startsWith('Bank:')) {
+    const accountId = paymentMethod.split(':')[1];
+    const account = accounts.find(a => a.id === accountId);
+    return `Bank (${account?.name || 'Unknown'})`;
+  }
+
+  // Legacy: bare account ID
   const account = accounts.find(a => a.id === paymentMethod);
   return account?.name || paymentMethod;
 };

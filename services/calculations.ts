@@ -17,10 +17,68 @@ export interface DailyAllowance {
   budgetRemaining: number;
 }
 
+export interface FutureBalanceWarning {
+  transactionId: string;
+  transactionType: 'expense' | 'income' | 'transfer';
+  accountId: string;
+  accountName: string;
+  projectedBalance: number;
+  shortfall: number;
+  date: string;
+}
+
+// Helper to get starting balance and date for a specific account
+const getAccountStartingInfo = (
+  startingBalance: StartingBalance | undefined,
+  accountId: string
+): { balance: number; asOfDate: string } => {
+  const defaultDate = '1970-01-01';
+
+  if (accountId === 'cash') {
+    // Check new per-account format first
+    if (startingBalance?.cash?.balance !== undefined) {
+      return {
+        balance: startingBalance.cash.balance,
+        asOfDate: startingBalance.cash.asOfDate || defaultDate
+      };
+    }
+    // No starting balance for cash - start from 0
+    return { balance: 0, asOfDate: defaultDate };
+  }
+
+  // Bank account
+  // Check new per-account format first
+  if (startingBalance?.accountBalances?.[accountId]?.balance !== undefined) {
+    return {
+      balance: startingBalance.accountBalances[accountId].balance,
+      asOfDate: startingBalance.accountBalances[accountId].asOfDate || defaultDate
+    };
+  }
+
+  // Fall back to legacy format (single date for all)
+  if (startingBalance?.accounts?.[accountId] !== undefined) {
+    return {
+      balance: startingBalance.accounts[accountId],
+      asOfDate: startingBalance.asOfDate || defaultDate
+    };
+  }
+
+  // Legacy 'bank' field for bank_default
+  if (accountId === 'bank_default' && startingBalance?.bank !== undefined) {
+    return {
+      balance: startingBalance.bank,
+      asOfDate: startingBalance.asOfDate || defaultDate
+    };
+  }
+
+  // No starting balance - start from 0
+  return { balance: 0, asOfDate: defaultDate };
+};
+
 export const calculations = {
   /**
    * Calculate running balance from starting balance, income, expenses, and transfers
-   * Supports multiple bank accounts
+   * Supports multiple bank accounts with per-account starting dates
    */
   calculateRunningBalance: (
     startingBalance: StartingBalance | undefined,
@@ -29,77 +87,80 @@ export const calculations = {
     transfers: Transfer[] = [],
     bankAccounts: BankAccount[] = []
   ): RunningBalance => {
-    // Initialize cash and accounts balances
-    let cash = startingBalance?.cash ?? 0;
-    const accounts: Record<string, number> = {};
-    const asOfDate = startingBalance?.asOfDate ?? '1970-01-01';
+    // Get cash starting info
+    const cashInfo = getAccountStartingInfo(startingBalance, 'cash');
+    let cash = cashInfo.balance;
+    const cashAsOfDate = cashInfo.asOfDate;
 
-    // Initialize each bank account balance from starting balance
+    // Initialize each bank account with its own starting balance and date
+    const accounts: Record<string, number> = {};
+    const accountDates: Record<string, string> = {};
+
     bankAccounts.forEach(account => {
-      accounts[account.id] = startingBalance?.accounts?.[account.id] ??
-        (account.id === 'bank_default' ? startingBalance?.bank ?? 0 : 0);
+      const info = getAccountStartingInfo(startingBalance, account.id);
+      accounts[account.id] = info.balance;
+      accountDates[account.id] = info.asOfDate;
     });
 
-    // Handle legacy 'bank' field for migration
-    if (startingBalance?.bank !== undefined && !accounts['bank_default'] && bankAccounts.some(a => a.id === 'bank_default')) {
-      accounts['bank_default'] = startingBalance.bank;
+    // Ensure bank_default exists if needed but no accounts defined
+    if (bankAccounts.length === 0) {
+      const defaultInfo = getAccountStartingInfo(startingBalance, 'bank_default');
+      accounts['bank_default'] = defaultInfo.balance;
+      accountDates['bank_default'] = defaultInfo.asOfDate;
     }
 
-    // Ensure bank_default exists if any accounts reference it
-    if (!accounts['bank_default'] && bankAccounts.length === 0) {
-      accounts['bank_default'] = startingBalance?.bank ?? 0;
-    }
+    // Process income - only include if after the relevant account's asOfDate
+    income.forEach(i => {
+      const accountId = resolveAccountId(i.paymentMethod);
+      const asOfDate = accountId === 'cash' ? cashAsOfDate : (accountDates[accountId] || accountDates['bank_default'] || '1970-01-01');
 
-    // Add all income after starting date
-    income
-      .filter(i => i.date >= asOfDate)
-      .forEach(i => {
-        const accountId = resolveAccountId(i.paymentMethod);
+      if (i.date >= asOfDate) {
         if (accountId === 'cash') {
           cash += i.amount;
         } else if (accounts[accountId] !== undefined) {
           accounts[accountId] += i.amount;
         } else {
-          // Account doesn't exist, use default
           accounts['bank_default'] = (accounts['bank_default'] || 0) + i.amount;
         }
-      });
+      }
+    });
 
-    // Subtract all expenses after starting date
-    expenses
-      .filter(e => e.date >= asOfDate)
-      .forEach(e => {
-        const accountId = resolveAccountId(e.paymentMethod);
+    // Process expenses - only include if after the relevant account's asOfDate
+    expenses.forEach(e => {
+      const accountId = resolveAccountId(e.paymentMethod);
+      const asOfDate = accountId === 'cash' ? cashAsOfDate : (accountDates[accountId] || accountDates['bank_default'] || '1970-01-01');
+
+      if (e.date >= asOfDate) {
         if (accountId === 'cash') {
           cash -= e.amount;
         } else if (accounts[accountId] !== undefined) {
           accounts[accountId] -= e.amount;
         } else {
-          // Account doesn't exist, use default
           accounts['bank_default'] = (accounts['bank_default'] || 0) - e.amount;
         }
-      });
+      }
+    });
 
-    // Apply transfers after starting date (moves money between accounts)
-    transfers
-      .filter(t => t.date >= asOfDate)
-      .forEach(t => {
-        // Use new fromAccountId/toAccountId fields, fall back to legacy direction
-        let fromId: string;
-        let toId: string;
+    // Process transfers - check both source and destination account dates
+    transfers.forEach(t => {
+      let fromId: string;
+      let toId: string;
 
-        if (t.fromAccountId && t.toAccountId) {
-          fromId = t.fromAccountId;
-          toId = t.toAccountId;
-        } else if (t.direction) {
-          // Legacy direction field
-          fromId = t.direction === 'BANK_TO_CASH' ? 'bank_default' : 'cash';
-          toId = t.direction === 'BANK_TO_CASH' ? 'cash' : 'bank_default';
-        } else {
-          return; // Invalid transfer
-        }
+      if (t.fromAccountId && t.toAccountId) {
+        fromId = t.fromAccountId;
+        toId = t.toAccountId;
+      } else if (t.direction) {
+        fromId = t.direction === 'BANK_TO_CASH' ? 'bank_default' : 'cash';
+        toId = t.direction === 'BANK_TO_CASH' ? 'cash' : 'bank_default';
+      } else {
+        return; // Invalid transfer
+      }
 
-        // Deduct from source
+      const fromAsOfDate = fromId === 'cash' ? cashAsOfDate : (accountDates[fromId] || accountDates['bank_default'] || '1970-01-01');
+      const toAsOfDate = toId === 'cash' ? cashAsOfDate : (accountDates[toId] || accountDates['bank_default'] || '1970-01-01');
+
+      // Deduct from source if after its asOfDate
+      if (t.date >= fromAsOfDate) {
         if (fromId === 'cash') {
           cash -= t.amount;
         } else if (accounts[fromId] !== undefined) {
@@ -107,8 +168,10 @@ export const calculations = {
         } else {
           accounts['bank_default'] = (accounts['bank_default'] || 0) - t.amount;
         }
+      }
 
-        // Add to destination
+      // Add to destination if after its asOfDate
+      if (t.date >= toAsOfDate) {
         if (toId === 'cash') {
           cash += t.amount;
         } else if (accounts[toId] !== undefined) {
@@ -116,7 +179,8 @@ export const calculations = {
         } else {
           accounts['bank_default'] = (accounts['bank_default'] || 0) + t.amount;
         }
-      });
+      }
+    });
 
     // Calculate totals
     const bankTotal = Object.values(accounts).reduce((sum, bal) => sum + bal, 0);
@@ -224,5 +288,183 @@ export const calculations = {
   getCurrentMonthKey: (): string => {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  },
+
+  /**
+   * Calculate warnings for future transactions that would cause negative account balances
+   * Returns a map of transaction ID -> warning details
+   */
+  calculateFutureBalanceWarnings: (
+    startingBalance: StartingBalance | undefined,
+    income: Income[],
+    expenses: Expense[],
+    transfers: Transfer[] = [],
+    bankAccounts: BankAccount[] = []
+  ): Map<string, FutureBalanceWarning> => {
+    const warnings = new Map<string, FutureBalanceWarning>();
+    const today = new Date().toISOString().split('T')[0];
+
+    // Get current running balance (up to and including today)
+    const currentBalance = calculations.calculateRunningBalance(
+      startingBalance,
+      income.filter(i => i.date <= today),
+      expenses.filter(e => e.date <= today),
+      transfers.filter(t => t.date <= today),
+      bankAccounts
+    );
+
+    // Initialize projected balances from current state
+    let projectedCash = currentBalance.cash;
+    const projectedAccounts: Record<string, number> = { ...currentBalance.accounts };
+
+    // Build account name lookup
+    const accountNames: Record<string, string> = { cash: 'Cash' };
+    bankAccounts.forEach(a => { accountNames[a.id] = a.name; });
+
+    // Collect all future transactions and sort by date
+    interface FutureTransaction {
+      id: string;
+      type: 'expense' | 'income' | 'transfer';
+      date: string;
+      amount: number;
+      accountId: string;  // For expenses/income: target account
+      fromAccountId?: string;  // For transfers
+      toAccountId?: string;  // For transfers
+      time?: string;
+    }
+
+    const futureTransactions: FutureTransaction[] = [];
+
+    // Future expenses
+    expenses
+      .filter(e => e.date > today)
+      .forEach(e => {
+        futureTransactions.push({
+          id: e.id,
+          type: 'expense',
+          date: e.date,
+          time: e.time,
+          amount: e.amount,
+          accountId: resolveAccountId(e.paymentMethod)
+        });
+      });
+
+    // Future income
+    income
+      .filter(i => i.date > today)
+      .forEach(i => {
+        futureTransactions.push({
+          id: i.id,
+          type: 'income',
+          date: i.date,
+          amount: i.amount,
+          accountId: resolveAccountId(i.paymentMethod)
+        });
+      });
+
+    // Future transfers
+    transfers
+      .filter(t => t.date > today)
+      .forEach(t => {
+        let fromId: string;
+        let toId: string;
+
+        if (t.fromAccountId && t.toAccountId) {
+          fromId = t.fromAccountId;
+          toId = t.toAccountId;
+        } else if (t.direction) {
+          fromId = t.direction === 'BANK_TO_CASH' ? 'bank_default' : 'cash';
+          toId = t.direction === 'BANK_TO_CASH' ? 'cash' : 'bank_default';
+        } else {
+          return;
+        }
+
+        futureTransactions.push({
+          id: t.id,
+          type: 'transfer',
+          date: t.date,
+          amount: t.amount,
+          accountId: fromId,  // Primary account affected
+          fromAccountId: fromId,
+          toAccountId: toId
+        });
+      });
+
+    // Sort by date, then time (earliest first)
+    futureTransactions.sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) return dateCompare;
+      if (a.time && b.time) return a.time.localeCompare(b.time);
+      if (a.time) return -1;
+      if (b.time) return 1;
+      return 0;
+    });
+
+    // Process transactions in chronological order
+    for (const txn of futureTransactions) {
+      if (txn.type === 'income') {
+        // Income adds to account
+        if (txn.accountId === 'cash') {
+          projectedCash += txn.amount;
+        } else {
+          projectedAccounts[txn.accountId] = (projectedAccounts[txn.accountId] || 0) + txn.amount;
+        }
+      } else if (txn.type === 'expense') {
+        // Expense subtracts from account
+        let balance: number;
+        if (txn.accountId === 'cash') {
+          projectedCash -= txn.amount;
+          balance = projectedCash;
+        } else {
+          projectedAccounts[txn.accountId] = (projectedAccounts[txn.accountId] || 0) - txn.amount;
+          balance = projectedAccounts[txn.accountId];
+        }
+
+        // Check for negative balance
+        if (balance < 0) {
+          warnings.set(txn.id, {
+            transactionId: txn.id,
+            transactionType: 'expense',
+            accountId: txn.accountId,
+            accountName: accountNames[txn.accountId] || txn.accountId,
+            projectedBalance: balance,
+            shortfall: Math.abs(balance),
+            date: txn.date
+          });
+        }
+      } else if (txn.type === 'transfer' && txn.fromAccountId && txn.toAccountId) {
+        // Transfer: deduct from source, add to destination
+        let sourceBalance: number;
+
+        if (txn.fromAccountId === 'cash') {
+          projectedCash -= txn.amount;
+          sourceBalance = projectedCash;
+        } else {
+          projectedAccounts[txn.fromAccountId] = (projectedAccounts[txn.fromAccountId] || 0) - txn.amount;
+          sourceBalance = projectedAccounts[txn.fromAccountId];
+        }
+
+        if (txn.toAccountId === 'cash') {
+          projectedCash += txn.amount;
+        } else {
+          projectedAccounts[txn.toAccountId] = (projectedAccounts[txn.toAccountId] || 0) + txn.amount;
+        }
+
+        // Check for negative balance on source account
+        if (sourceBalance < 0) {
+          warnings.set(txn.id, {
+            transactionId: txn.id,
+            transactionType: 'transfer',
+            accountId: txn.fromAccountId,
+            accountName: accountNames[txn.fromAccountId] || txn.fromAccountId,
+            projectedBalance: sourceBalance,
+            shortfall: Math.abs(sourceBalance),
+            date: txn.date
+          });
+        }
+      }
+    }
+
+    return warnings;
   }
 };

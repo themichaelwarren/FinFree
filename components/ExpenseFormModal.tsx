@@ -93,13 +93,13 @@ const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
 
       {/* Modal */}
       <div
-        className={`relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl shadow-2xl animate-in slide-in-from-bottom-4 duration-300 ${
-          isDark ? 'bg-[#0a0a0a] border border-zinc-800' : 'bg-white border border-gray-200'
+        className={`relative w-full sm:max-w-md max-h-[90vh] overflow-y-auto rounded-t-xl sm:rounded-xl shadow-sm ${
+          isDark ? 'bg-zinc-950 border border-zinc-800' : 'bg-white border border-gray-200'
         }`}
       >
         {/* Header */}
-        <div className={`sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b ${isDark ? 'bg-[#0a0a0a] border-zinc-800' : 'bg-white border-gray-200'}`}>
-          <h2 className={`text-sm font-bold uppercase tracking-[0.15em] ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>
+        <div className={`sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b ${isDark ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-gray-200'}`}>
+          <h2 className={`text-sm font-semibold ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>
             New {getModeLabel()}
           </h2>
           <button
@@ -116,7 +116,7 @@ const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
             <button
               type="button"
               onClick={() => setMode('expense')}
-              className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${
+              className={`flex-1 py-2.5 text-xs font-medium rounded-lg transition-colors ${
                 mode === 'expense'
                   ? isDark ? 'bg-zinc-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
                   : isDark ? 'text-zinc-500 hover:text-zinc-400' : 'text-gray-500 hover:text-gray-700'
@@ -127,7 +127,7 @@ const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
             <button
               type="button"
               onClick={() => setMode('income')}
-              className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${
+              className={`flex-1 py-2.5 text-xs font-medium rounded-lg transition-colors ${
                 mode === 'income'
                   ? isDark ? 'bg-emerald-700 text-white shadow-sm' : 'bg-emerald-600 text-white shadow-sm'
                   : isDark ? 'text-zinc-500 hover:text-zinc-400' : 'text-gray-500 hover:text-gray-700'
@@ -138,7 +138,7 @@ const ExpenseFormModal: React.FC<ExpenseFormModalProps> = ({
             <button
               type="button"
               onClick={() => setMode('transfer')}
-              className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${
+              className={`flex-1 py-2.5 text-xs font-medium rounded-lg transition-colors ${
                 mode === 'transfer'
                   ? isDark ? 'bg-blue-700 text-white shadow-sm' : 'bg-blue-600 text-white shadow-sm'
                   : isDark ? 'text-zinc-500 hover:text-zinc-400' : 'text-gray-500 hover:text-gray-700'

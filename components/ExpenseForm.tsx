@@ -60,14 +60,15 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
   const isFormValid = amount && !isNaN(Number(amount)) && Number(amount) > 0 && category && paymentMethod && date && hasValidAccount;
 
   // Build the final payment method string
+  // Format: Cash, Card, Bank (legacy) or Card:{accountId}, Bank:{accountId} (with accounts)
   const getFinalPaymentMethod = (): string => {
     if (paymentMethod === 'Cash') return 'Cash';
     if (bankAccounts.length === 0) return paymentMethod; // Legacy: no accounts defined
     if (paymentMethod === 'Card') {
       return selectedAccountId ? `Card:${selectedAccountId}` : 'Card';
     }
-    // Bank transfer - use account ID directly
-    return selectedAccountId || 'Bank';
+    // Bank transfer - use Bank:{accountId} format for consistency with Card
+    return selectedAccountId ? `Bank:${selectedAccountId}` : 'Bank';
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -153,7 +154,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
   };
 
   return (
-    <div className={`rounded-2xl p-6 mb-8 shadow-xl overflow-hidden ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+    <div className={`rounded-xl p-4 overflow-hidden ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
       <form onSubmit={handleSubmit} className="space-y-5 overflow-hidden">
 
         {/* Type Toggle (Need/Want/Save) */}
@@ -164,7 +165,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
               key={t}
               type="button"
               onClick={() => setType(t)}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-widest rounded-lg transition-all ${
+              className={`flex-1 py-2 text-xs font-medium uppercase rounded-lg transition-colors ${
                 type === t
                   ? isDark ? 'bg-zinc-700 text-white shadow-sm' : 'bg-white text-gray-900 shadow-sm'
                   : isDark ? 'text-zinc-500 hover:text-zinc-400' : 'text-gray-500 hover:text-gray-700'
@@ -177,14 +178,14 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
 
         <div className="flex gap-4">
           <div className="flex-1">
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Amount (¥)</label>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Amount (¥)</label>
             <input
               type="number"
               inputMode="numeric"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0"
-              className={`w-full border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 transition-all outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
+              className={`w-full border-none rounded-xl py-4 px-4 text-2xl font-bold focus:ring-2 transition-colors outline-none ${isDark ? 'bg-zinc-900 text-white focus:ring-white/10' : 'bg-gray-100 text-gray-900 focus:ring-gray-300'}`}
               required
             />
           </div>
@@ -194,12 +195,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
               onClick={() => fileInputRef.current?.click()}
               disabled={isScanning || !apiKey}
               title={!apiKey ? 'Add Gemini API key in Settings to enable receipt scanning' : 'Scan receipt'}
-              className={`p-4 rounded-xl flex items-center justify-center transition-all ${
+              className={`p-4 rounded-xl flex items-center justify-center transition-colors ${
                 !apiKey
                   ? isDark ? 'bg-zinc-900 opacity-40 cursor-not-allowed' : 'bg-gray-100 opacity-40 cursor-not-allowed'
                   : isScanning
                     ? isDark ? 'bg-zinc-800' : 'bg-gray-200'
-                    : isDark ? 'bg-zinc-800 hover:bg-zinc-700 active:scale-95 border border-zinc-700' : 'bg-gray-100 hover:bg-gray-200 active:scale-95 border border-gray-300'
+                    : isDark ? 'bg-zinc-800 hover:bg-zinc-700 border border-zinc-700' : 'bg-gray-100 hover:bg-gray-200 border border-gray-300'
               }`}
             >
               {isScanning ? (
@@ -221,7 +222,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Category</label>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Category</label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Category)}
@@ -234,7 +235,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
             </select>
           </div>
           <div>
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Payment</label>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Payment</label>
             <select
               value={paymentMethod}
               onChange={(e) => {
@@ -259,7 +260,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
         {/* Account selector for Card/Bank payments */}
         {paymentMethod !== 'Cash' && paymentMethod && bankAccounts.length > 0 && (
           <div>
-            <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+            <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
               {paymentMethod === 'Card' ? 'Card From Account' : 'From Account'}
             </label>
             <select
@@ -278,7 +279,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
         )}
 
         <div className="overflow-hidden">
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Date</label>
           <div className="overflow-hidden rounded-xl">
             <input
               type="date"
@@ -291,7 +292,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
         </div>
 
         <div>
-          <label className={`block text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Store / Description</label>
+          <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Store / Description</label>
           <input
             type="text"
             value={store}
@@ -304,9 +305,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSave, apiKey, isDark = true
         <button
           type="submit"
           disabled={!isFormValid}
-          className={`w-full font-bold py-4 rounded-xl transition-all shadow-lg ${
+          className={`w-full font-bold py-4 rounded-xl transition-colors ${
             isFormValid
-              ? isDark ? 'bg-white text-black hover:bg-zinc-200 active:scale-[0.98]' : 'bg-gray-900 text-white hover:bg-gray-800 active:scale-[0.98]'
+              ? isDark ? 'bg-white text-black hover:bg-zinc-200' : 'bg-gray-900 text-white hover:bg-gray-800'
               : isDark ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed' : 'bg-gray-200 text-gray-400 cursor-not-allowed'
           }`}
         >

@@ -172,7 +172,8 @@ export const ICONS = {
   ChevronRight,
   Calendar,
   Sun,
-  Moon
+  Moon,
+  CreditCard
 };
 
 const createEmptyBudget = (): MonthlyBudget => ({

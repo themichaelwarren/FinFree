@@ -202,11 +202,11 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
   const monthName = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(selectedMonth + '-01'));
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
+    <div className="lg:grid lg:grid-cols-3 lg:gap-8 lg:items-start">
       {/* Left Column - Month & Salary (1 col on desktop) - Sticky on desktop */}
       <div className="space-y-6 mb-6 lg:mb-0 lg:sticky lg:top-8">
       {/* Month Selector Header */}
-      <div className={`flex items-center justify-between rounded-2xl p-2 pr-4 shadow-sm ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+      <div className={`flex items-center justify-between rounded-xl p-2 pr-4 shadow-sm ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
         <div className="flex items-center gap-1">
           <button
             onClick={() => adjustMonth(-1)}
@@ -243,23 +243,18 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
 
         <button
           onClick={() => setSelectedMonth(new Date().toISOString().slice(0, 7))}
-          className={`text-[10px] font-black uppercase tracking-widest transition-colors px-3 py-2 ${isDark ? 'text-zinc-500 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
+          className={`text-xs font-medium transition-colors px-3 py-2 ${isDark ? 'text-zinc-500 hover:text-white' : 'text-gray-500 hover:text-gray-900'}`}
         >
           Today
         </button>
       </div>
 
       {/* Salary & Summary Card */}
-      <div className={`rounded-3xl p-6 shadow-2xl relative overflow-hidden group ${isDark ? 'bg-[#111] border border-zinc-800' : 'bg-white border border-gray-200'}`}>
-        <div className={`absolute top-0 right-0 p-8 transition-opacity ${isDark ? 'opacity-[0.03] group-hover:opacity-[0.05]' : 'opacity-[0.02] group-hover:opacity-[0.04]'}`}>
-          <ICONS.Table className="w-32 h-32" />
-        </div>
-
-        <div className="flex items-center gap-8 relative z-10">
+      <div className={`rounded-xl p-4 overflow-hidden ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+        <div className="flex items-center gap-8">
           <div className="flex-1">
-            <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 flex items-center gap-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${isDark ? 'bg-zinc-600' : 'bg-gray-400'}`} />
-              Expected Salary
+            <p className={`text-xs font-medium mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+              Expected salary
             </p>
             <div className="flex items-center gap-2">
               <span className={`text-2xl font-bold ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>¥</span>
@@ -273,7 +268,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
             </div>
           </div>
           <div className="text-right">
-            <p className={`text-[10px] font-bold uppercase tracking-[0.2em] mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Available</p>
+            <p className={`text-xs font-medium mb-2 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>Available</p>
             <p className={`text-2xl font-bold tracking-tight ${leftToBudget < 0 ? 'text-rose-500' : leftToBudget === 0 ? (isDark ? 'text-zinc-500' : 'text-gray-400') : 'text-emerald-500'}`}>
               ¥{leftToBudget.toLocaleString()}
             </p>
@@ -285,19 +280,14 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
       {/* Right Column - Budget Table (2 cols on desktop) */}
       <div className="lg:col-span-2 space-y-6">
       {/* Expenses Table */}
-      <div className={`rounded-3xl overflow-hidden shadow-sm ${isDark ? 'bg-zinc-900/20 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
-        <div className={`p-5 border-b flex items-center justify-between ${isDark ? 'border-zinc-800 bg-zinc-900/40' : 'border-gray-200 bg-gray-50'}`}>
-           <h3 className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Budget Allocation</h3>
-           <div className="flex gap-1">
-              <div className="w-1 h-1 rounded-full bg-rose-500" />
-              <div className="w-1 h-1 rounded-full bg-blue-500" />
-              <div className="w-1 h-1 rounded-full bg-amber-500" />
-           </div>
+      <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+        <div className={`p-4 border-b flex items-center justify-between ${isDark ? 'border-zinc-800' : 'border-gray-200 bg-gray-50'}`}>
+           <h3 className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Budget allocation</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className={`text-[9px] font-black uppercase tracking-[0.25em] border-b ${isDark ? 'text-zinc-600 border-zinc-800/50' : 'text-gray-400 border-gray-200'}`}>
+              <tr className={`text-xs font-medium border-b ${isDark ? 'text-zinc-600 border-zinc-800' : 'text-gray-400 border-gray-200'}`}>
                 <th className="px-6 py-4">
                   <button
                     onClick={() => handleSort('expense')}
@@ -305,7 +295,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                   >
                     Expense
                     {sortColumn === 'expense' && (
-                      <span className="text-[8px]">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                      <span className="text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>
                     )}
                   </button>
                 </th>
@@ -316,7 +306,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                   >
                     Type
                     {sortColumn === 'type' && (
-                      <span className="text-[8px]">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                      <span className="text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>
                     )}
                   </button>
                 </th>
@@ -327,13 +317,13 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                   >
                     Budget
                     {sortColumn === 'budget' && (
-                      <span className="text-[8px]">{sortDirection === 'asc' ? '▲' : '▼'}</span>
+                      <span className="text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>
                     )}
                   </button>
                 </th>
               </tr>
             </thead>
-            <tbody className={`divide-y ${isDark ? 'divide-zinc-800/50' : 'divide-gray-100'}`}>
+            <tbody className={`divide-y ${isDark ? 'divide-zinc-800' : 'divide-gray-100'}`}>
               {sortedCategories.map((cat) => {
                 const catBudget = budget.categories[cat.id] || { amount: 0, type: cat.defaultType };
                 const percentage = budget.salary > 0 ? ((catBudget.amount / budget.salary) * 100).toFixed(1) : '0';
@@ -343,19 +333,19 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
                         {renderCategoryIcon(cat.icon, `w-4 h-4 ${catBudget.amount > 0 ? (isDark ? 'text-zinc-400' : 'text-gray-500') : (isDark ? 'text-zinc-700' : 'text-gray-300')}`)}
-                        <p className={`text-xs font-bold tracking-wide ${catBudget.amount > 0 ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-zinc-600' : 'text-gray-400')}`}>
+                        <p className={`text-xs font-medium ${catBudget.amount > 0 ? (isDark ? 'text-white' : 'text-gray-900') : (isDark ? 'text-zinc-600' : 'text-gray-400')}`}>
                           {cat.name}
                         </p>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`text-[8px] font-black px-2 py-1 rounded-md tracking-tighter ${
-                        catBudget.type === 'NEED' ? 'bg-rose-500/10 text-rose-500 border border-rose-500/20' :
-                        catBudget.type === 'WANT' ? 'bg-blue-500/10 text-blue-500 border border-blue-500/20' :
-                        catBudget.type === 'SAVE' ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' :
-                        isDark ? 'bg-zinc-800 text-zinc-500 border border-zinc-700' : 'bg-gray-100 text-gray-500 border border-gray-200'
+                      <span className={`text-xs font-medium ${
+                        catBudget.type === 'NEED' ? 'text-rose-500' :
+                        catBudget.type === 'WANT' ? 'text-blue-500' :
+                        catBudget.type === 'SAVE' ? 'text-amber-500' :
+                        isDark ? 'text-zinc-500' : 'text-gray-500'
                       }`}>
-                        {catBudget.type}
+                        {catBudget.type === 'NEED' ? 'Need' : catBudget.type === 'WANT' ? 'Want' : catBudget.type === 'SAVE' ? 'Save' : 'Debt'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
@@ -367,18 +357,18 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                           placeholder="0"
                           className={`w-24 bg-transparent border-none text-right font-bold text-sm focus:ring-0 p-0 outline-none ${isDark ? 'text-white' : 'text-gray-900'}`}
                         />
-                        <span className={`text-[8px] font-bold mt-0.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{percentage}%</span>
+                        <span className={`text-xs mt-0.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{percentage}%</span>
                       </div>
                     </td>
                   </tr>
                 );
               })}
-              <tr className={`backdrop-blur-md ${isDark ? 'bg-zinc-900/60' : 'bg-gray-50'}`}>
-                <td colSpan={2} className={`px-6 py-5 text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Total Planned</td>
+              <tr className={`${isDark ? 'bg-zinc-900' : 'bg-gray-50'}`}>
+                <td colSpan={2} className={`px-6 py-5 text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>Total planned</td>
                 <td className="px-6 py-5 text-right">
                   <p className={`font-bold text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>¥{totalBudgeted.toLocaleString()}</p>
-                  <p className={`text-[8px] font-bold mt-0.5 ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
-                    {budget.salary > 0 ? Math.round((totalBudgeted / budget.salary) * 100) : 0}% OF SALARY
+                  <p className={`text-xs mt-0.5 ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+                    {budget.salary > 0 ? Math.round((totalBudgeted / budget.salary) * 100) : 0}% of salary
                   </p>
                 </td>
               </tr>
@@ -388,9 +378,9 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
       </div>
 
       <div className="pb-12 px-2 lg:pb-0 space-y-4">
-        <div className={`flex items-start gap-3 p-4 rounded-2xl ${isDark ? 'bg-zinc-900/30 border border-zinc-800/50' : 'bg-gray-50 border border-gray-200'}`}>
+        <div className={`flex items-start gap-3 p-4 rounded-xl ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-gray-50 border border-gray-200'}`}>
           <ICONS.AlertCircle className={`w-4 h-4 mt-0.5 shrink-0 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`} />
-          <p className={`text-[10px] leading-relaxed font-medium ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+          <p className={`text-xs leading-relaxed ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
             Setting your budget ahead of time helps you visualize your cash flow.
             The system uses the budget for {monthName} to calculate your progress in the Track tab.
           </p>
@@ -399,10 +389,10 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
         {/* Category Management */}
         <button
           onClick={() => setShowCategoryEditor(!showCategoryEditor)}
-          className={`w-full text-left p-4 rounded-2xl transition-colors ${isDark ? 'bg-zinc-900/30 border border-zinc-800/50 hover:bg-zinc-900/50' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
+          className={`w-full text-left p-4 rounded-xl transition-colors ${isDark ? 'bg-zinc-900 border border-zinc-800 hover:bg-zinc-800' : 'bg-gray-50 border border-gray-200 hover:bg-gray-100'}`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-[10px] font-bold uppercase tracking-[0.2em] ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>
+            <span className={`text-xs font-medium ${isDark ? 'text-zinc-400' : 'text-gray-500'}`}>
               Manage Categories
             </span>
             <ICONS.ChevronRight className={`w-4 h-4 transition-transform ${showCategoryEditor ? 'rotate-90' : ''} ${isDark ? 'text-zinc-500' : 'text-gray-400'}`} />
@@ -410,10 +400,10 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
         </button>
 
         {showCategoryEditor && (
-          <div className={`rounded-2xl overflow-hidden ${isDark ? 'bg-zinc-900/40 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
+          <div className={`rounded-xl overflow-hidden ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-gray-200'}`}>
             {/* Add/Edit Category Form */}
             <div className={`p-4 border-b ${isDark ? 'border-zinc-800' : 'border-gray-200'}`}>
-              <p className={`text-[10px] font-bold uppercase tracking-[0.15em] mb-3 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
+              <p className={`text-xs font-medium mb-3 ${isDark ? 'text-zinc-500' : 'text-gray-500'}`}>
                 {editingCategory ? 'Edit Category' : 'Add New Category'}
               </p>
               <div className="space-y-3">
@@ -426,7 +416,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                 />
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Icon</label>
+                    <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Icon</label>
                     <select
                       value={newCategoryIcon}
                       onChange={(e) => setNewCategoryIcon(e.target.value as CategoryIcon)}
@@ -438,7 +428,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                     </select>
                   </div>
                   <div>
-                    <label className={`block text-[9px] font-bold uppercase tracking-widest mb-1.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Type</label>
+                    <label className={`block text-xs font-medium mb-1.5 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>Type</label>
                     <select
                       value={newCategoryType}
                       onChange={(e) => setNewCategoryType(e.target.value as ExpenseType)}
@@ -481,15 +471,15 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
             </div>
 
             {/* Category List - filtered when typing to detect duplicates */}
-            <div className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? 'border-zinc-800/50 bg-zinc-900/30' : 'border-gray-100 bg-gray-50'}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-widest ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+            <div className={`px-4 py-2 border-b flex items-center justify-between ${isDark ? 'border-zinc-800 bg-zinc-900' : 'border-gray-100 bg-gray-50'}`}>
+              <span className={`text-xs font-medium ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
                 {newCategoryName.trim()
                   ? `Matching: ${filteredCategories.length} of ${categories.length}`
                   : `All Categories (${categories.length})`
                 }
               </span>
               {newCategoryName.trim() && filteredCategories.length > 0 && (
-                <span className={`text-[9px] font-medium ${isDark ? 'text-amber-500' : 'text-amber-600'}`}>
+                <span className={`text-xs font-medium ${isDark ? 'text-amber-500' : 'text-amber-600'}`}>
                   Similar exists!
                 </span>
               )}
@@ -498,7 +488,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
               {filteredCategories.length === 0 && newCategoryName.trim() ? (
                 <div className={`px-4 py-6 text-center ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
                   <p className="text-xs font-medium">No matching categories</p>
-                  <p className={`text-[10px] mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>
                     "{newCategoryName}" appears to be new
                   </p>
                 </div>
@@ -512,7 +502,7 @@ const BudgetManager: React.FC<BudgetManagerProps> = ({ config, onSave, isDark = 
                       {renderCategoryIcon(cat.icon, `w-4 h-4 ${isDark ? 'text-zinc-400' : 'text-gray-500'}`)}
                       <div>
                         <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>{cat.name}</p>
-                        <p className={`text-[9px] font-bold uppercase tracking-wider ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{cat.defaultType}</p>
+                        <p className={`text-xs ${isDark ? 'text-zinc-600' : 'text-gray-400'}`}>{cat.defaultType === 'NEED' ? 'Need' : cat.defaultType === 'WANT' ? 'Want' : cat.defaultType === 'SAVE' ? 'Save' : 'Debt'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1">
